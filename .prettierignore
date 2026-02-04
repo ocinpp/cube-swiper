@@ -1,0 +1,10 @@
+dist
+dist-ssr
+coverage
+.node_modules
+.agents
+.claude
+*.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
