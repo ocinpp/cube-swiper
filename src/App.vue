@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full h-screen overflow-hidden">
+  <div class="w-full h-dvh overflow-hidden">
     <MagicCube :images="sampleImages" />
   </div>
 </template>

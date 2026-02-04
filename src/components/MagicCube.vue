@@ -1,25 +1,109 @@
 <template>
-  <div ref="container" class="w-full h-full holographic-bg relative">
+  <div ref="container" class="w-full h-full cyber-bg relative">
+    <!-- Calibration Ring SVG -->
+    <div class="calibration-ring">
+      <svg viewBox="0 0 400 400">
+        <!-- Outer ring -->
+        <circle
+          cx="200"
+          cy="200"
+          r="190"
+          class="cal-ring-outer"
+        />
+        <!-- Inner ring with calibration marks -->
+        <circle
+          cx="200"
+          cy="200"
+          r="170"
+          class="cal-ring-marks"
+          stroke-dasharray="2 8"
+        />
+        <!-- Degree markers -->
+        <g class="cal-degree">
+          <text x="200" y="25" text-anchor="middle">0°</text>
+          <text x="375" y="204" text-anchor="middle">90°</text>
+          <text x="200" y="385" text-anchor="middle">180°</text>
+          <text x="25" y="204" text-anchor="middle">270°</text>
+        </g>
+        <!-- Rotating element synced with cube -->
+        <g class="cal-rotator" :style="{ transform: `rotate(${currentRotationY}deg)` }">
+          <line
+            x1="200"
+            y1="10"
+            x2="200"
+            y2="30"
+            :stroke="isDragging ? 'var(--color-amber)' : 'var(--color-cyan-dim)'"
+            stroke-width="2"
+          />
+          <circle
+            cx="200"
+            cy="20"
+            r="3"
+            :fill="isDragging ? 'var(--color-amber)' : 'var(--color-cyan-dim)'"
+          />
+        </g>
+        <!-- Active sector indicator -->
+        <path
+          class="cal-sector"
+          :style="{ opacity: isDragging ? 1 : 0 }"
+          d="M 200 10 A 190 190 0 0 1 390 200"
+        />
+      </svg>
+    </div>
+
     <!-- Loading overlay -->
-    <div
-      v-if="isLoading"
-      class="absolute inset-0 flex items-center justify-center bg-black/50 z-10"
-    >
-      <div class="flex flex-col items-center gap-4">
+    <div v-if="isLoading" class="loading-overlay">
+      <div class="loading-indicator">
         <div class="loading-spinner"></div>
-        <p class="text-holographic-cyan text-sm">Loading holographic cube...</p>
+        <span class="loading-text">Initializing</span>
       </div>
     </div>
 
     <!-- Canvas container -->
     <canvas ref="canvas" class="w-full h-full block"></canvas>
 
-    <!-- Instructions overlay -->
-    <div
-      v-if="!hasInteracted"
-      class="absolute bottom-8 left-0 right-0 text-center pointer-events-none"
-    >
-      <p class="text-holographic-purple/70 text-sm px-4">Drag to rotate the cube</p>
+    <!-- HUD: Top Left - Title -->
+    <div class="hud-panel hud-panel--top-left">
+      <h1 class="hud-title">CHRONO CUBE</h1>
+      <div class="hud-subtitle">Image Viewer v1.0</div>
+      <div class="hud-divider"></div>
+      <div class="hud-label">System Status</div>
+      <div class="hud-value" :class="isDragging ? 'hud-value--warn' : 'hud-value--accent'">
+        {{ isDragging ? 'MANUAL OVERRIDE' : 'ACTIVE' }}
+      </div>
+    </div>
+
+    <!-- HUD: Top Right - Coordinates -->
+    <div class="hud-panel hud-panel--top-right">
+      <div class="hud-label">Rotation</div>
+      <div class="hud-value">
+        X: <span class="hud-value--accent">{{ formatRotation(displayedRotationX) }}°</span>
+      </div>
+      <div class="hud-value">
+        Y: <span class="hud-value--accent">{{ formatRotation(displayedRotationY) }}°</span>
+      </div>
+      <div class="hud-divider hud-divider--right"></div>
+      <div class="hud-label">Visible Faces</div>
+      <div class="hud-value hud-value--accent">
+        <span v-for="(face, index) in visibleFaceNumbers" :key="face">
+          F{{ face }}<span v-if="index < visibleFaceNumbers.length - 1">, </span>
+        </span>
+      </div>
+    </div>
+
+    <!-- HUD: Bottom Left - Controls -->
+    <div class="hud-panel hud-panel--bottom-left" v-if="!hasInteracted">
+      <div class="hud-label">Control Mode</div>
+      <div class="hud-value">DRAG TO ROTATE</div>
+    </div>
+
+    <!-- HUD: Bottom Right - Frame Info -->
+    <div class="hud-panel hud-panel--bottom-right">
+      <div class="hud-label">Frame</div>
+      <div class="hud-value">{{ frameCounter }}</div>
+      <div class="hud-divider hud-divider--right"></div>
+      <div class="hud-label">Image Cycle</div>
+      <div class="hud-value hud-value--warn">{{ totalImageCycles }}</div>
     </div>
   </div>
 </template>
@@ -39,6 +123,18 @@ const container = ref<HTMLDivElement>()
 const canvas = ref<HTMLCanvasElement>()
 const isLoading = ref(true)
 const hasInteracted = ref(false)
+
+// HUD State
+const frameCounter = ref(0)
+const visibleFaceCount = ref(0)
+const visibleFaceNumbers = ref<number[]>([])
+const totalImageCycles = ref(0)
+
+// Throttled update state for idle mode
+let lastThrottledUpdate = 0
+const THROTTLE_MS = 100 // Update 10x per second when idle
+const displayedRotationX = ref(0)
+const displayedRotationY = ref(0)
 
 // Three.js variables
 let scene: THREE.Scene
@@ -66,6 +162,12 @@ let faceImageIndices = [0, 1, 2, 3, 4, 5] // Initially mapped 1:1
 let faceChangeTimestamps = [0, 0, 0, 0, 0, 0]
 const COOLDOWN_MS = 3000 // 3 seconds
 
+// HUD Helper Functions
+function formatRotation(degrees: number): string {
+  const normalized = ((degrees % 360) + 360) % 360
+  return normalized.toFixed(1)
+}
+
 const initThreeJS = async () => {
   if (!canvas.value || !container.value) return
 
@@ -87,15 +189,26 @@ const initThreeJS = async () => {
   renderer.setSize(container.value.clientWidth, container.value.clientHeight)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
-  // Load textures
+  // Load textures with error handling
   const textureLoader = new THREE.TextureLoader()
   const textures = await Promise.all(
-    props.images.map((url) => {
+    props.images.map((url, index) => {
       return new Promise<THREE.Texture>((resolve, reject) => {
-        textureLoader.load(url, resolve, undefined, reject)
+        textureLoader.load(
+          url,
+          (texture) => resolve(texture),
+          undefined,
+          (error) => {
+            console.error(`Failed to load texture at index ${index} (${url}):`, error)
+            reject(error)
+          }
+        )
       })
     })
-  )
+  ).catch((error) => {
+    console.error('Critical: Failed to load required textures:', error)
+    throw error
+  })
 
   // Create materials for each face - brighter, less dark
   const materials = textures.map((texture) => {
@@ -119,7 +232,7 @@ const initThreeJS = async () => {
   // Add holographic edges
   const edgesGeometry = new THREE.EdgesGeometry(geometry)
   const edgesMaterial = new THREE.LineBasicMaterial({
-    color: 0x8b5cf6,
+    color: 0x00d4ff, // Cyan
     transparent: true,
     opacity: 0.6,
   })
@@ -130,15 +243,15 @@ const initThreeJS = async () => {
   const ambientLight = new THREE.AmbientLight(0xffffff, 1.2)
   scene.add(ambientLight)
 
-  const pointLight1 = new THREE.PointLight(0x8b5cf6, 1, 10)
+  const pointLight1 = new THREE.PointLight(0xff9500, 1, 10) // Amber
   pointLight1.position.set(2, 2, 2)
   scene.add(pointLight1)
 
-  const pointLight2 = new THREE.PointLight(0x06b6d4, 0.8, 10)
+  const pointLight2 = new THREE.PointLight(0x00d4ff, 0.8, 10) // Cyan
   pointLight2.position.set(-2, -2, 2)
   scene.add(pointLight2)
 
-  const pointLight3 = new THREE.PointLight(0xec4899, 0.6, 10)
+  const pointLight3 = new THREE.PointLight(0xff9500, 0.6, 10) // Amber
   pointLight3.position.set(0, 0, -2)
   scene.add(pointLight3)
 
@@ -157,6 +270,13 @@ const initThreeJS = async () => {
 // Check which faces are currently visible to the camera
 function getVisibleFaces(): Set<number> {
   const visible = new Set<number>()
+
+  // Defensive null checks
+  if (!camera || !cube) {
+    console.warn('getVisibleFaces called before camera or cube initialized')
+    return visible
+  }
+
   const cameraDirection = new THREE.Vector3()
   camera.getWorldDirection(cameraDirection) // Points from camera to scene
 
@@ -174,21 +294,39 @@ function getVisibleFaces(): Set<number> {
 }
 
 // Update texture for a specific face
-async function updateFaceTexture(faceIndex: number, imageIndex: number) {
-  const textureLoader = new THREE.TextureLoader()
-  const texture = await new Promise<THREE.Texture>((resolve, reject) => {
-    textureLoader.load(props.images[imageIndex], resolve, undefined, reject)
-  })
+async function updateFaceTexture(faceIndex: number, imageIndex: number): Promise<void> {
+  if (!cube || !props.images[imageIndex]) {
+    console.error(`Invalid texture update request: face ${faceIndex}, image ${imageIndex}`)
+    return
+  }
 
-  // Update the material's map (cube.material is an array of 6 materials)
-  const materials = cube.material as THREE.MeshPhysicalMaterial[]
-  const material = materials[faceIndex]
-  material.map = texture
-  material.needsUpdate = true
+  try {
+    const textureLoader = new THREE.TextureLoader()
+    const texture = await new Promise<THREE.Texture>((resolve, reject) => {
+      textureLoader.load(props.images[imageIndex], resolve, undefined, reject)
+    })
+
+    // Update the material's map (cube.material is an array of 6 materials)
+    const materials = cube.material as THREE.MeshPhysicalMaterial[]
+    const material = materials[faceIndex]
+
+    // Dispose old texture to prevent memory leak
+    if (material.map) {
+      material.map.dispose()
+    }
+
+    material.map = texture
+    material.needsUpdate = true
+  } catch (error) {
+    console.error(`Failed to load texture for face ${faceIndex} (image ${imageIndex}):`, error)
+  }
 }
 
 const animate = () => {
   animationFrameId = requestAnimationFrame(animate)
+
+  // Update frame counter
+  frameCounter.value++
 
   // Smooth rotation interpolation
   currentRotationX += (targetRotationX - currentRotationX) * 0.08
@@ -217,6 +355,24 @@ const animate = () => {
     const nowVisibleFaces = getVisibleFaces()
     const now = Date.now()
 
+    // Hybrid HUD update strategy
+    if (isDragging.value) {
+      // During drag: Real-time updates for immediate feedback
+      displayedRotationX.value = currentRotationX + (isDragging.value ? dragDeltaY.value * 0.3 : 0)
+      displayedRotationY.value = currentRotationY + (isDragging.value ? dragDeltaX.value * 0.3 : 0)
+      visibleFaceCount.value = nowVisibleFaces.size
+      visibleFaceNumbers.value = Array.from(nowVisibleFaces).sort((a, b) => a - b)
+    } else {
+      // When idle: Throttled updates (10fps) for readability
+      if (now - lastThrottledUpdate > THROTTLE_MS) {
+        displayedRotationX.value = currentRotationX
+        displayedRotationY.value = currentRotationY
+        visibleFaceCount.value = nowVisibleFaces.size
+        visibleFaceNumbers.value = Array.from(nowVisibleFaces).sort((a, b) => a - b)
+        lastThrottledUpdate = now
+      }
+    }
+
     for (const faceIndex of nowVisibleFaces) {
       // Skip if was already visible
       if (previouslyVisibleFaces.has(faceIndex)) continue
@@ -232,6 +388,9 @@ const animate = () => {
 
       // Update timestamp
       faceChangeTimestamps[faceIndex] = now
+
+      // Increment total cycle counter for HUD
+      totalImageCycles.value++
     }
 
     // Update previous visibility
@@ -283,6 +442,26 @@ onUnmounted(() => {
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId)
   }
+
+  // Dispose of cube resources
+  if (cube) {
+    const materials = cube.material as THREE.MeshPhysicalMaterial[]
+    materials.forEach((material) => {
+      if (material.map) {
+        material.map.dispose()
+      }
+      material.dispose()
+    })
+    cube.geometry.dispose()
+  }
+
+  // Dispose of edge resources
+  if (edges) {
+    edges.geometry.dispose()
+    ;(edges.material as THREE.Material).dispose()
+  }
+
+  // Dispose of renderer
   if (renderer) {
     renderer.dispose()
   }

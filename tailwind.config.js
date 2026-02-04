@@ -4,12 +4,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        holographic: {
-          purple: '#8b5cf6',
-          blue: '#3b82f6',
-          cyan: '#06b6d4',
-          pink: '#ec4899',
-          dark: '#0f0f23',
+        cyber: {
+          void: '#0a0a0c',
+          obsidian: '#121216',
+          charcoal: '#1a1a20',
+          amber: '#ff9500',
+          'amber-glow': '#ffb340',
+          cyan: '#00d4ff',
+          'cyan-dim': '#0088aa',
+          white: '#f5f5f7',
+          gray: '#8a8a93',
+          'gray-dim': '#4a4a52',
         },
       },
     },

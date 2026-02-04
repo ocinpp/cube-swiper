@@ -1,6 +1,6 @@
-# Magic Cube - Holographic 3D Image Viewer
+# CHRONO CUBE - Precision Image Viewer
 
-An interactive 3D holographic cube that displays images on its faces. Drag to rotate the cube freely in any direction and watch as faces dynamically change images when they come into view.
+An interactive 3D image viewer with a precision timekeeping aesthetic. Drag to rotate the cube freely in any direction and watch as faces dynamically change images when they come into view.
 
 ![Vue](https://img.shields.io/badge/Vue-3.5-42b883?logo=vue.js)
 ![Three.js](https://img.shields.io/badge/Three.js-0.170-000000?logo=three.js)
@@ -11,8 +11,11 @@ An interactive 3D holographic cube that displays images on its faces. Drag to ro
 - **Free Rotation**: Drag to rotate the cube in any direction - no constrained angles
 - **Dynamic Face Changes**: Images cycle automatically when faces become visible to the camera
 - **Smart Cooldown System**: 3-second cooldown prevents excessive changes during rapid rotation
-- **Holographic Aesthetic**: Purple/cyan color scheme with glowing edges and pulsing effects
-- **Smooth Animations**: Floating animation and interpolated rotation for a fluid experience
+- **Cyber-Chronometer Aesthetic**: Industrial luxury design with amber warning lights and cyan data displays
+- **Calibration Ring**: Animated outer ring that responds to cube rotation
+- **Technical HUD**: Real-time display of rotation coordinates, visible face count, and frame statistics
+- **Dual Typography**: Elegant serif headings (Playfair Display) paired with monospace data readouts (JetBrains Mono)
+- **Smooth Animations**: Floating animation, interpolated rotation, and mechanical feedback
 - **Responsive**: Optimized camera distance for mobile and desktop
 - **Touch Friendly**: Works with mouse and touch input
 
@@ -21,7 +24,15 @@ An interactive 3D holographic cube that displays images on its faces. Drag to ro
 - **Vue 3** with Composition API and TypeScript
 - **Three.js** for 3D rendering
 - **Vite** for fast development
-- **Tailwind CSS** for styling
+- **Tailwind CSS** for styling with custom cyber-chronometer design system
+
+## Mobile Optimization
+
+- **Dynamic Viewport Height**: Uses `100dvh` instead of `100vh` to properly handle mobile browser UI (address bars, toolbars)
+- **Touch Gesture Support**: Full touch and mouse input support via pointer events
+- **Responsive Camera**: Automatic camera distance adjustment (4.5 for mobile, 3 for desktop)
+- **Optimized Touch Targets**: Large drag area covering entire screen
+- **Calibration Ring**: Reduced opacity on touch devices for better visibility
 
 ## Getting Started
 
@@ -64,3 +75,28 @@ const imageUrls = [
 - Each face cycles through the provided image array independently
 - A 3-second cooldown prevents changes during rapid rotation
 - Release to maintain the current rotation angle
+
+## HUD Elements
+
+- **Top Left**: System title and status indicator (ACTIVE / MANUAL OVERRIDE)
+- **Top Right**: Real-time rotation coordinates (X/Y) and visible face indicators (e.g., F0, F2, F4)
+  - Rotation coordinates update at 60fps during drag, 10fps when idle
+  - Face numbers show which cube faces are currently visible to the camera
+- **Bottom Left**: Control mode hint (disappears after first interaction)
+- **Bottom Right**: Frame counter and total image cycle counter
+- **Calibration Ring**: Outer ring rotates with cube, shows degree markers
+
+### Face Number Reference
+
+- **F0**: Right (+X)
+- **F1**: Left (-X)
+- **F2**: Top (+Y)
+- **F3**: Bottom (-Y)
+- **F4**: Front (+Z)
+- **F5**: Back (-Z)
+
+## Browser Compatibility
+
+- Modern browsers supporting CSS `dvh` unit (Chrome 108+, Safari 16.4+, Firefox 101+)
+- Falls back to `vh` for older browsers
+- WebGL support required for Three.js rendering
