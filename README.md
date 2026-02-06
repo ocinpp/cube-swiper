@@ -8,6 +8,7 @@ An interactive 3D image viewer with a precision timekeeping aesthetic. Drag to r
 
 ## Features
 
+- **Camera-Relative Rotation**: Swipe direction always matches screen direction - right swipe moves faces right regardless of cube orientation
 - **Free Rotation**: Drag to rotate the cube in any direction - no constrained angles
 - **Dynamic Face Changes**: Images cycle automatically when faces become visible to the camera
 - **Smart Cooldown System**: 3-second cooldown prevents excessive changes during rapid rotation
@@ -96,7 +97,12 @@ const imageUrls = [
 
 ## Controls
 
-- **Drag**: Rotate the cube freely in any direction
+- **Drag**: Rotate the cube freely in any direction with intuitive camera-relative controls
+  - Swipe right → faces rotate right on screen
+  - Swipe left → faces rotate left on screen
+  - Swipe up → faces rotate up on screen
+  - Swipe down → faces rotate down on screen
+  - Behavior is consistent regardless of cube orientation (upside down, sideways, etc.)
 - The cube displays images on all 6 faces
 - **Face images change automatically** when they transition from off-view to on-view
 - Each face cycles through the provided image array independently
@@ -145,9 +151,15 @@ The application has completed critical fixes and feature enhancements, making it
 - ✅ **Configurable Cropping Strategies**: Cover (default), contain (letterbox), and fill (stretch) modes
 - ✅ **CORS Support**: Works with remote images from Unsplash and other sources
 
+### Completed (Phase 2.5 - UX Improvements)
+- ✅ **Camera-Relative Rotation**: Quaternion-based rotation ensures swipe direction matches screen direction regardless of cube orientation
+- ✅ **World-Axis Rotation**: Uses `rotateOnWorldAxis()` for consistent screen-space rotation behavior
+- ✅ **Code Quality**: All magic numbers extracted to named constants (DRAG_SENSITIVITY, SLERP_FACTOR, DEG_TO_RAD)
+- ✅ **Documentation**: Comprehensive drag-to-axis mapping diagram added
+- ✅ **Code Review**: All feedback addressed - Important and Minor issues resolved
+
 ### Remaining Improvements (Phase 3 - Enhancements)
 - ⏳ Accessibility: ARIA labels and keyboard navigation support
-- ⏳ Performance: Optimize object creation in animation loops
-- ⏳ Code Quality: Extract magic numbers to named constants
+- ⏳ Testing: Add unit tests for quaternion rotation logic (requires test infrastructure setup)
 
-The application is stable and feature-complete for production deployment. Remaining items are polish and enhancements.
+The application is stable, feature-complete, and all code review feedback has been addressed. Ready for production deployment.

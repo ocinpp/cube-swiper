@@ -125,8 +125,14 @@ function applyCoverStrategy(
   // Draw cropped region to canvas
   ctx.drawImage(
     image,
-    cropX, cropY, cropSize, cropSize,  // Source rectangle
-    0, 0, targetSize, targetSize        // Destination rectangle
+    cropX,
+    cropY,
+    cropSize,
+    cropSize, // Source rectangle
+    0,
+    0,
+    targetSize,
+    targetSize // Destination rectangle
   )
 
   return canvas
