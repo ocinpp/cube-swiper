@@ -55,7 +55,7 @@
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-indicator">
         <div class="loading-spinner"></div>
-        <span class="loading-text">Initializing</span>
+        <span class="loading-text">Loading textures... {{ Math.round(loadingProgress * 100) }}%</span>
       </div>
     </div>
 
@@ -112,16 +112,23 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import * as THREE from 'three'
 import { useCubeNavigation } from '../composables/useCubeNavigation'
+import { loadCroppedTexture, type CropStrategy } from '../utils/textureCropping'
 
 interface Props {
   images: string[]
+  cropStrategy?: CropStrategy
+  cropSize?: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  cropStrategy: 'cover',
+  cropSize: 2048,
+})
 
 const container = ref<HTMLDivElement>()
 const canvas = ref<HTMLCanvasElement>()
 const isLoading = ref(true)
+const loadingProgress = ref(0)
 const hasInteracted = ref(false)
 
 // HUD State
@@ -189,37 +196,44 @@ const initThreeJS = async () => {
   renderer.setSize(container.value.clientWidth, container.value.clientHeight)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
-  // Load textures with error handling
-  const textureLoader = new THREE.TextureLoader()
+  // Load textures with cropping, error handling and progress tracking
+  console.log(`🖼️ Starting to load and crop ${props.images.length} textures (strategy: ${props.cropStrategy})...`)
+  let loadedCount = 0
+
   const textures = await Promise.all(
     props.images.map((url, index) => {
-      return new Promise<THREE.Texture>((resolve, reject) => {
-        textureLoader.load(
-          url,
-          (texture) => resolve(texture),
-          undefined,
-          (error) => {
-            console.error(`Failed to load texture at index ${index} (${url}):`, error)
-            reject(error)
-          }
-        )
+      return loadCroppedTexture(url, {
+        strategy: props.cropStrategy,
+        targetSize: props.cropSize,
       })
+        .then((texture) => {
+          loadedCount++
+          loadingProgress.value = loadedCount / props.images.length
+          console.log(`✅ Loaded cropped texture ${loadedCount}/${props.images.length}: ${url}`)
+          return texture
+        })
+        .catch((error) => {
+          console.error(`❌ Failed to load cropped texture at index ${index} (${url}):`, error)
+          throw error
+        })
     })
   ).catch((error) => {
     console.error('Critical: Failed to load required textures:', error)
     throw error
   })
 
-  // Create materials for each face - brighter, less dark
+  console.log('🎉 All textures loaded successfully!')
+
+  // Create materials for each face - balanced brightness
   const materials = textures.map((texture) => {
     return new THREE.MeshPhysicalMaterial({
       map: texture,
       transparent: false,
       opacity: 1,
-      metalness: 0.1,
-      roughness: 0.2,
-      clearcoat: 0.3,
-      clearcoatRoughness: 0.2,
+      metalness: 0.0,
+      roughness: 0.5,
+      clearcoat: 0.1,
+      clearcoatRoughness: 0.3,
       side: THREE.FrontSide,
     })
   })
@@ -239,19 +253,19 @@ const initThreeJS = async () => {
   edges = new THREE.LineSegments(edgesGeometry, edgesMaterial)
   cube.add(edges)
 
-  // Add lighting - brighter for better visibility
-  const ambientLight = new THREE.AmbientLight(0xffffff, 1.2)
+  // Add lighting - balanced for accurate image colors
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
   scene.add(ambientLight)
 
-  const pointLight1 = new THREE.PointLight(0xff9500, 1, 10) // Amber
+  const pointLight1 = new THREE.PointLight(0xff9500, 0.5, 10) // Amber
   pointLight1.position.set(2, 2, 2)
   scene.add(pointLight1)
 
-  const pointLight2 = new THREE.PointLight(0x00d4ff, 0.8, 10) // Cyan
+  const pointLight2 = new THREE.PointLight(0x00d4ff, 0.3, 10) // Cyan
   pointLight2.position.set(-2, -2, 2)
   scene.add(pointLight2)
 
-  const pointLight3 = new THREE.PointLight(0xff9500, 0.6, 10) // Amber
+  const pointLight3 = new THREE.PointLight(0xff9500, 0.3, 10) // Amber
   pointLight3.position.set(0, 0, -2)
   scene.add(pointLight3)
 
@@ -293,7 +307,7 @@ function getVisibleFaces(): Set<number> {
   return visible
 }
 
-// Update texture for a specific face
+// Update texture for a specific face with cropping
 async function updateFaceTexture(faceIndex: number, imageIndex: number): Promise<void> {
   if (!cube || !props.images[imageIndex]) {
     console.error(`Invalid texture update request: face ${faceIndex}, image ${imageIndex}`)
@@ -301,9 +315,9 @@ async function updateFaceTexture(faceIndex: number, imageIndex: number): Promise
   }
 
   try {
-    const textureLoader = new THREE.TextureLoader()
-    const texture = await new Promise<THREE.Texture>((resolve, reject) => {
-      textureLoader.load(props.images[imageIndex], resolve, undefined, reject)
+    const texture = await loadCroppedTexture(props.images[imageIndex], {
+      strategy: props.cropStrategy,
+      targetSize: props.cropSize,
     })
 
     // Update the material's map (cube.material is an array of 6 materials)
@@ -318,7 +332,7 @@ async function updateFaceTexture(faceIndex: number, imageIndex: number): Promise
     material.map = texture
     material.needsUpdate = true
   } catch (error) {
-    console.error(`Failed to load texture for face ${faceIndex} (image ${imageIndex}):`, error)
+    console.error(`Failed to load cropped texture for face ${faceIndex} (image ${imageIndex}):`, error)
   }
 }
 
