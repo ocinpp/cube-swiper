@@ -24,6 +24,11 @@ All critical issues and major features have been implemented. The application is
 - ✅ CORS support for remote images
 - ✅ Backward compatible API with sensible defaults
 
+**Completed (Phase 2.5 - UX Improvements):**
+- ✅ Camera-relative rotation using quaternions
+- ✅ World-axis rotation for consistent screen-space behavior
+- ✅ Swipe direction matches user expectations regardless of orientation
+
 **Remaining Enhancements (Phase 3):**
 - Accessibility improvements (ARIA, keyboard nav)
 - Performance optimizations (reduce object allocation)
@@ -189,6 +194,9 @@ App.vue                    # Root component, provides sample images array
 - `LineSegments` with `EdgesGeometry` for glowing cube edges in cyan (#00d4ff)
 - Initial rotation is angled (-15°, -25°) to show 3D depth
 - Drag sensitivity: 0.3 multiplier on drag delta for rotation
+- **Quaternion-based rotation**: Uses quaternions and `rotateOnWorldAxis()` for camera-relative rotation
+- **World axes**: Horizontal swipes rotate around world Y axis, vertical swipes around world X axis
+- **Slerp interpolation**: Smooth quaternion interpolation with 0.08 factor
 
 ### Component Usage Examples
 
@@ -453,14 +461,39 @@ function getVisibleFaces(): Set<number> {
 - Clear error messages for debugging
 - Type safety improvements throughout
 
-### Free Rotation Logic
+### Free Rotation Logic (Camera-Relative)
+
+The cube uses **quaternion-based camera-relative rotation** to ensure swipe direction always matches user expectations.
 
 1. User drags → `useCubeNavigation` updates `dragDeltaX/Y` and `isDragging`
-2. Animation loop applies drag offset in real-time: `rotation = currentRotation + dragOffset * 0.3`
-3. On pointer up → watch reads actual cube rotation (`radToDeg(cube.rotation.x/y)`)
-4. New rotation becomes target → no snap-back, smooth persistence of angle
+2. Animation loop applies drag offset using world-axis rotation:
+   - Horizontal drag → rotates around world Y axis (screen up direction)
+   - Vertical drag → rotates around world X axis (screen right direction)
+   - Uses `rotateOnWorldAxis()` on a helper object for screen-space rotation
+3. Cube quaternion smoothly interpolates to target using `slerp()` with 0.08 factor
+4. On pointer up → current cube quaternion becomes new target quaternion
+5. No snap-back: orientation persists smoothly after drag release
 
-**Critical:** When drag ends, we read the cube's actual rotation (which includes the drag offset) and set that as the new target rotation. This preserves the user's rotation instead of snapping back.
+**Why Quaternions?**
+- **Consistent behavior**: Rotation direction is always relative to camera/screen, not cube orientation
+- **No gimbal lock**: Quaternions avoid the gimbal lock issues inherent with Euler angles
+- **Smooth interpolation**: Slerp provides natural, smooth rotation transitions
+- **Intuitive UX**: When cube is upside down, right swipe still moves faces right on screen
+
+**Implementation** (`src/components/MagicCube.vue:347-359`):
+```typescript
+// World axes for camera-relative rotation
+const worldUpAxis = new THREE.Vector3(0, 1, 0) // Horizontal swipes
+const worldRightAxis = new THREE.Vector3(1, 0, 0) // Vertical swipes
+
+// Apply drag offset using world axes
+rotationHelper.quaternion.copy(targetQuaternion)
+rotationHelper.rotateOnWorldAxis(worldRightAxis, dragXRotation)
+rotationHelper.rotateOnWorldAxis(worldUpAxis, dragYRotation)
+
+// Smooth interpolation
+cube.quaternion.slerp(rotationHelper.quaternion, 0.08)
+```
 
 ### Dynamic Face Image Change System
 
