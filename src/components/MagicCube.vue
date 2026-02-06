@@ -4,20 +4,9 @@
     <div class="calibration-ring">
       <svg viewBox="0 0 400 400">
         <!-- Outer ring -->
-        <circle
-          cx="200"
-          cy="200"
-          r="190"
-          class="cal-ring-outer"
-        />
+        <circle cx="200" cy="200" r="190" class="cal-ring-outer" />
         <!-- Inner ring with calibration marks -->
-        <circle
-          cx="200"
-          cy="200"
-          r="170"
-          class="cal-ring-marks"
-          stroke-dasharray="2 8"
-        />
+        <circle cx="200" cy="200" r="170" class="cal-ring-marks" stroke-dasharray="2 8" />
         <!-- Degree markers -->
         <g class="cal-degree">
           <text x="200" y="25" text-anchor="middle">0°</text>
@@ -26,7 +15,7 @@
           <text x="25" y="204" text-anchor="middle">270°</text>
         </g>
         <!-- Rotating element synced with cube -->
-        <g class="cal-rotator" :style="{ transform: `rotate(${currentRotationY}deg)` }">
+        <g class="cal-rotator" :style="{ transform: `rotate(${displayedRotationY}deg)` }">
           <line
             x1="200"
             y1="10"
@@ -55,7 +44,9 @@
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-indicator">
         <div class="loading-spinner"></div>
-        <span class="loading-text">Loading textures... {{ Math.round(loadingProgress * 100) }}%</span>
+        <span class="loading-text"
+          >Loading textures... {{ Math.round(loadingProgress * 100) }}%</span
+        >
       </div>
     </div>
 
@@ -149,20 +140,25 @@ let camera: THREE.PerspectiveCamera
 let renderer: THREE.WebGLRenderer
 let cube: THREE.Mesh
 let edges: THREE.LineSegments
-let targetRotationX = 0
-let targetRotationY = 0
-let currentRotationX = 0
-let currentRotationY = 0
+let targetQuaternion: THREE.Quaternion
 let animationFrameId: number
+
+// World axes for camera-relative rotation
+const worldUpAxis = new THREE.Vector3(0, 1, 0) // Horizontal swipes rotate around Y
+const worldRightAxis = new THREE.Vector3(1, 0, 0) // Vertical swipes rotate around X
+
+// Reusable objects for animation loop (avoid allocation)
+const hudEuler = new THREE.Euler()
+const rotationHelper = new THREE.Object3D()
 
 // Face visibility tracking
 const faceNormals = [
-  new THREE.Vector3(1, 0, 0),   // right (+X)
-  new THREE.Vector3(-1, 0, 0),  // left (-X)
-  new THREE.Vector3(0, 1, 0),   // top (+Y)
-  new THREE.Vector3(0, -1, 0),  // bottom (-Y)
-  new THREE.Vector3(0, 0, 1),   // front (+Z)
-  new THREE.Vector3(0, 0, -1),  // back (-Z)
+  new THREE.Vector3(1, 0, 0), // right (+X)
+  new THREE.Vector3(-1, 0, 0), // left (-X)
+  new THREE.Vector3(0, 1, 0), // top (+Y)
+  new THREE.Vector3(0, -1, 0), // bottom (-Y)
+  new THREE.Vector3(0, 0, 1), // front (+Z)
+  new THREE.Vector3(0, 0, -1), // back (-Z)
 ]
 let previouslyVisibleFaces = new Set<number>()
 let faceImageIndices = [0, 1, 2, 3, 4, 5] // Initially mapped 1:1
@@ -197,7 +193,9 @@ const initThreeJS = async () => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
   // Load textures with cropping, error handling and progress tracking
-  console.log(`🖼️ Starting to load and crop ${props.images.length} textures (strategy: ${props.cropStrategy})...`)
+  console.log(
+    `🖼️ Starting to load and crop ${props.images.length} textures (strategy: ${props.cropStrategy})...`
+  )
   let loadedCount = 0
 
   const textures = await Promise.all(
@@ -270,10 +268,11 @@ const initThreeJS = async () => {
   scene.add(pointLight3)
 
   // Set initial rotation to show 3D effect
-  targetRotationX = -15
-  targetRotationY = -25
-  currentRotationX = -15
-  currentRotationY = -25
+  cube.rotation.x = THREE.MathUtils.degToRad(-15)
+  cube.rotation.y = THREE.MathUtils.degToRad(-25)
+
+  // Initialize target quaternion from initial rotation
+  targetQuaternion = cube.quaternion.clone()
 
   // Start animation loop
   animate()
@@ -332,7 +331,10 @@ async function updateFaceTexture(faceIndex: number, imageIndex: number): Promise
     material.map = texture
     material.needsUpdate = true
   } catch (error) {
-    console.error(`Failed to load cropped texture for face ${faceIndex} (image ${imageIndex}):`, error)
+    console.error(
+      `Failed to load cropped texture for face ${faceIndex} (image ${imageIndex}):`,
+      error
+    )
   }
 }
 
@@ -342,17 +344,19 @@ const animate = () => {
   // Update frame counter
   frameCounter.value++
 
-  // Smooth rotation interpolation
-  currentRotationX += (targetRotationX - currentRotationX) * 0.08
-  currentRotationY += (targetRotationY - currentRotationY) * 0.08
-
-  // Apply rotation
+  // Apply camera-relative rotation using quaternions
   if (cube) {
-    // Add drag rotation offset for real-time feedback (both X and Y axes)
-    const dragOffsetX = isDragging.value ? dragDeltaY.value * 0.3 : 0  // Vertical drag rotates around X
-    const dragOffsetY = isDragging.value ? dragDeltaX.value * 0.3 : 0  // Horizontal drag rotates around Y
-    cube.rotation.x = THREE.MathUtils.degToRad(currentRotationX + dragOffsetX)
-    cube.rotation.y = THREE.MathUtils.degToRad(currentRotationY + dragOffsetY)
+    // Calculate drag rotation offset in radians
+    const dragXRotation = isDragging.value ? dragDeltaY.value * 0.3 * (Math.PI / 180) : 0 // Vertical drag rotates around X
+    const dragYRotation = isDragging.value ? dragDeltaX.value * 0.3 * (Math.PI / 180) : 0 // Horizontal drag rotates around Y
+
+    // Apply world-axis rotation to helper object
+    rotationHelper.quaternion.copy(targetQuaternion)
+    rotationHelper.rotateOnWorldAxis(worldRightAxis, dragXRotation)
+    rotationHelper.rotateOnWorldAxis(worldUpAxis, dragYRotation)
+
+    // Smooth interpolation using slerp
+    cube.quaternion.slerp(rotationHelper.quaternion, 0.08)
 
     // Add subtle floating animation
     cube.position.y = Math.sin(Date.now() * 0.001) * 0.05
@@ -372,15 +376,17 @@ const animate = () => {
     // Hybrid HUD update strategy
     if (isDragging.value) {
       // During drag: Real-time updates for immediate feedback
-      displayedRotationX.value = currentRotationX + (isDragging.value ? dragDeltaY.value * 0.3 : 0)
-      displayedRotationY.value = currentRotationY + (isDragging.value ? dragDeltaX.value * 0.3 : 0)
+      hudEuler.setFromQuaternion(cube.quaternion)
+      displayedRotationX.value = THREE.MathUtils.radToDeg(hudEuler.x)
+      displayedRotationY.value = THREE.MathUtils.radToDeg(hudEuler.y)
       visibleFaceCount.value = nowVisibleFaces.size
       visibleFaceNumbers.value = Array.from(nowVisibleFaces).sort((a, b) => a - b)
     } else {
       // When idle: Throttled updates (10fps) for readability
       if (now - lastThrottledUpdate > THROTTLE_MS) {
-        displayedRotationX.value = currentRotationX
-        displayedRotationY.value = currentRotationY
+        hudEuler.setFromQuaternion(cube.quaternion)
+        displayedRotationX.value = THREE.MathUtils.radToDeg(hudEuler.x)
+        displayedRotationY.value = THREE.MathUtils.radToDeg(hudEuler.y)
         visibleFaceCount.value = nowVisibleFaces.size
         visibleFaceNumbers.value = Array.from(nowVisibleFaces).sort((a, b) => a - b)
         lastThrottledUpdate = now
@@ -438,11 +444,8 @@ watch(isDragging, (dragging, wasDragging) => {
     // Drag started
     hasInteracted.value = true
   } else if (wasDragging && !dragging && cube) {
-    // Drag ended - capture the current cube rotation as the new target
-    targetRotationX = THREE.MathUtils.radToDeg(cube.rotation.x)
-    targetRotationY = THREE.MathUtils.radToDeg(cube.rotation.y)
-    currentRotationX = targetRotationX
-    currentRotationY = targetRotationY
+    // Drag ended - capture the current orientation as the new target
+    targetQuaternion.copy(cube.quaternion)
   }
 })
 
