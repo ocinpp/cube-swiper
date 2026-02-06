@@ -465,13 +465,78 @@ function getVisibleFaces(): Set<number> {
 
 The cube uses **quaternion-based camera-relative rotation** to ensure swipe direction always matches user expectations.
 
+#### Drag-to-Axis Mapping Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    CAMERA VIEW (Screen Space)                   │
+│                                                                  │
+│        +Y (screen up)    ↑    World +Y axis (points up)         │
+│                          │                                       │
+│                          │                                       │
+│                          │                                       │
+│  -X (left) ←─────────────●─────────────→ +X (screen right)      │
+│                    (center)              World +X axis            │
+│                          │            (points right)             │
+│                          │                                       │
+│                          │                                       │
+│                          ↓                                       │
+│        -Y (screen down)  │                                       │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+DRAG DIRECTION → ROTATION AXIS → VISUAL EFFECT
+═══════════════════════════════════════════════════════════════════
+
+Swipe Right (→)           │  Rotate around World Y   │  Faces move → on screen
+dragDeltaX > 0            │  (vertical axis)         │
+                          │  → rotateOnWorldAxis(    │
+                          │    new Vector3(0,1,0),   │
+                          │    angle)                │
+───────────────────────────────────────────────────────────────────
+Swipe Left (←)            │  Rotate around World Y   │  Faces move ← on screen
+dragDeltaX < 0            │  (vertical axis)         │
+                          │  → rotateOnWorldAxis(    │
+                          │    new Vector3(0,1,0),   │
+                          │    -angle)               │
+───────────────────────────────────────────────────────────────────
+Swipe Up (↑)              │  Rotate around World X   │  Faces move ↑ on screen
+dragDeltaY < 0            │  (horizontal axis)       │
+                          │  → rotateOnWorldAxis(    │
+                          │    new Vector3(1,0,0),   │
+                          │    -angle)               │
+                          │  (negative because Y-up) │
+───────────────────────────────────────────────────────────────────
+Swipe Down (↓)            │  Rotate around World X   │  Faces move ↓ on screen
+dragDeltaY > 0            │  (horizontal axis)       │
+                          │  → rotateOnWorldAxis(    │
+                          │    new Vector3(1,0,0),   │
+                          │    angle)                │
+                          │  (positive because Y-up) │
+═══════════════════════════════════════════════════════════════════
+
+KEY INSIGHT: Rotating around world Y makes things spin horizontally (like a
+lazy susan). Rotating around world X makes things tilt vertically (like
+nodding). This is why screen X drag maps to world Y rotation, and screen
+Y drag maps to world X rotation.
+
+CUBE ORIENTATION INDEPENDENCE: Because we use world axes (not cube's local
+axes), the behavior is consistent regardless of how the cube is currently
+oriented. Upside down, sideways, or at any angle - right swipe always
+moves faces right on screen.
+```
+
+#### Implementation Flow
+
+1. User drags → `useCubeNavigation` updates `dragDeltaX/Y` and `isDragging`
+
 1. User drags → `useCubeNavigation` updates `dragDeltaX/Y` and `isDragging`
 2. Animation loop applies drag offset using world-axis rotation:
-   - Horizontal drag → rotates around world Y axis (screen up direction)
-   - Vertical drag → rotates around world X axis (screen right direction)
+   - Horizontal drag (`dragDeltaX`) → rotates around world Y axis
+   - Vertical drag (`dragDeltaY`) → rotates around world X axis
    - Uses `rotateOnWorldAxis()` on a helper object for screen-space rotation
-3. Cube quaternion smoothly interpolates to target using `slerp()` with 0.08 factor
-4. On pointer up → current cube quaternion becomes new target quaternion
+3. Cube quaternion smoothly interpolates to target using `slerp()` with `SLERP_FACTOR` (0.08)
+4. On pointer up → current cube quaternion becomes new target quaternion (using `clone()`)
 5. No snap-back: orientation persists smoothly after drag release
 
 **Why Quaternions?**
@@ -480,11 +545,16 @@ The cube uses **quaternion-based camera-relative rotation** to ensure swipe dire
 - **Smooth interpolation**: Slerp provides natural, smooth rotation transitions
 - **Intuitive UX**: When cube is upside down, right swipe still moves faces right on screen
 
-**Implementation** (`src/components/MagicCube.vue:347-359`):
+**Implementation** (`src/components/MagicCube.vue:354-368`):
 ```typescript
+// Rotation configuration constants
+const DRAG_SENSITIVITY = 0.3
+const SLERP_FACTOR = 0.08
+const DEG_TO_RAD = Math.PI / 180
+
 // World axes for camera-relative rotation
-const worldUpAxis = new THREE.Vector3(0, 1, 0) // Horizontal swipes
-const worldRightAxis = new THREE.Vector3(1, 0, 0) // Vertical swipes
+const worldUpAxis = new THREE.Vector3(0, 1, 0) // Rotation around Y moves faces horizontally
+const worldRightAxis = new THREE.Vector3(1, 0, 0) // Rotation around X moves faces vertically
 
 // Apply drag offset using world axes
 rotationHelper.quaternion.copy(targetQuaternion)
@@ -492,7 +562,7 @@ rotationHelper.rotateOnWorldAxis(worldRightAxis, dragXRotation)
 rotationHelper.rotateOnWorldAxis(worldUpAxis, dragYRotation)
 
 // Smooth interpolation
-cube.quaternion.slerp(rotationHelper.quaternion, 0.08)
+cube.quaternion.slerp(rotationHelper.quaternion, SLERP_FACTOR)
 ```
 
 ### Dynamic Face Image Change System

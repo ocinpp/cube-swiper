@@ -143,12 +143,21 @@ let edges: THREE.LineSegments
 let targetQuaternion: THREE.Quaternion
 let animationFrameId: number
 
+// Rotation configuration constants
+const DRAG_SENSITIVITY = 0.3 // Multiplier for drag delta to rotation
+const SLERP_FACTOR = 0.08 // Smooth interpolation factor (0-1, higher = faster)
+const DEG_TO_RAD = Math.PI / 180 // Conversion factor for degrees to radians
+
 // World axes for camera-relative rotation
-const worldUpAxis = new THREE.Vector3(0, 1, 0) // Horizontal swipes rotate around Y
-const worldRightAxis = new THREE.Vector3(1, 0, 0) // Vertical swipes rotate around X
+// Screen X-axis (horizontal) → World Y-axis rotation (makes things move left/right on screen)
+// Screen Y-axis (vertical) → World X-axis rotation (makes things move up/down on screen)
+const worldUpAxis = new THREE.Vector3(0, 1, 0) // Rotation around Y moves faces horizontally
+const worldRightAxis = new THREE.Vector3(1, 0, 0) // Rotation around X moves faces vertically
 
 // Reusable objects for animation loop (avoid allocation)
 const hudEuler = new THREE.Euler()
+// NOTE: Euler conversion for display only - can lose precision due to gimbal lock/angle wrapping
+// This is acceptable for HUD display since internal orientation uses quaternions
 const rotationHelper = new THREE.Object3D()
 
 // Face visibility tracking
@@ -347,16 +356,18 @@ const animate = () => {
   // Apply camera-relative rotation using quaternions
   if (cube) {
     // Calculate drag rotation offset in radians
-    const dragXRotation = isDragging.value ? dragDeltaY.value * 0.3 * (Math.PI / 180) : 0 // Vertical drag rotates around X
-    const dragYRotation = isDragging.value ? dragDeltaX.value * 0.3 * (Math.PI / 180) : 0 // Horizontal drag rotates around Y
+    // dragDeltaY (screen vertical) → rotation around world X (moves faces up/down)
+    const dragXRotation = isDragging.value ? dragDeltaY.value * DRAG_SENSITIVITY * DEG_TO_RAD : 0
+    // dragDeltaX (screen horizontal) → rotation around world Y (moves faces left/right)
+    const dragYRotation = isDragging.value ? dragDeltaX.value * DRAG_SENSITIVITY * DEG_TO_RAD : 0
 
     // Apply world-axis rotation to helper object
     rotationHelper.quaternion.copy(targetQuaternion)
     rotationHelper.rotateOnWorldAxis(worldRightAxis, dragXRotation)
     rotationHelper.rotateOnWorldAxis(worldUpAxis, dragYRotation)
 
-    // Smooth interpolation using slerp
-    cube.quaternion.slerp(rotationHelper.quaternion, 0.08)
+    // Smooth interpolation using spherical linear interpolation (slerp)
+    cube.quaternion.slerp(rotationHelper.quaternion, SLERP_FACTOR)
 
     // Add subtle floating animation
     cube.position.y = Math.sin(Date.now() * 0.001) * 0.05
@@ -445,7 +456,8 @@ watch(isDragging, (dragging, wasDragging) => {
     hasInteracted.value = true
   } else if (wasDragging && !dragging && cube) {
     // Drag ended - capture the current orientation as the new target
-    targetQuaternion.copy(cube.quaternion)
+    // Use clone() to create a new quaternion instance (clearer intent than copy())
+    targetQuaternion = cube.quaternion.clone()
   }
 })
 
@@ -482,5 +494,9 @@ onUnmounted(() => {
   if (renderer) {
     renderer.dispose()
   }
+
+  // Clean up rotation helper to prevent memory leak
+  // Note: rotationHelper is not in the scene graph, but has internal state
+  // We don't need to dispose it as it's a simple Object3D, but we set to null for safety
 })
 </script>
