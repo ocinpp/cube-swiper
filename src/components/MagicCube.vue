@@ -147,6 +147,8 @@ let animationFrameId: number
 const DRAG_SENSITIVITY = 0.3 // Multiplier for drag delta to rotation
 const SLERP_FACTOR = 0.08 // Smooth interpolation factor (0-1, higher = faster)
 const DEG_TO_RAD = Math.PI / 180 // Conversion factor for degrees to radians
+const MOMENTUM_DECAY = 0.95 // Momentum decay per frame (0-1, higher = longer momentum)
+const MOMENTUM_THRESHOLD = 0.001 // Stop momentum when below this threshold (radians)
 
 // World axes for camera-relative rotation
 // Screen X-axis (horizontal) → World Y-axis rotation (makes things move left/right on screen)
@@ -159,6 +161,12 @@ const hudEuler = new THREE.Euler()
 // NOTE: Euler conversion for display only - can lose precision due to gimbal lock/angle wrapping
 // This is acceptable for HUD display since internal orientation uses quaternions
 const rotationHelper = new THREE.Object3D()
+
+// Momentum state for realistic swipe decay
+let momentumX = 0 // X-axis momentum (radians per frame)
+let momentumY = 0 // Y-axis momentum (radians per frame)
+let previousDragDeltaX = 0 // Track previous drag for velocity calculation
+let previousDragDeltaY = 0
 
 // Face visibility tracking
 const faceNormals = [
@@ -353,21 +361,59 @@ const animate = () => {
   // Update frame counter
   frameCounter.value++
 
-  // Apply camera-relative rotation using quaternions
+  // Apply camera-relative rotation using quaternions with momentum
   if (cube) {
-    // Calculate drag rotation offset in radians
-    // dragDeltaY (screen vertical) → rotation around world X (moves faces up/down)
-    const dragXRotation = isDragging.value ? dragDeltaY.value * DRAG_SENSITIVITY * DEG_TO_RAD : 0
-    // dragDeltaX (screen horizontal) → rotation around world Y (moves faces left/right)
-    const dragYRotation = isDragging.value ? dragDeltaX.value * DRAG_SENSITIVITY * DEG_TO_RAD : 0
+    let applyRotationX = 0 // Total X-axis rotation to apply this frame
+    let applyRotationY = 0 // Total Y-axis rotation to apply this frame
+
+    if (isDragging.value) {
+      // During drag: calculate drag rotation and track velocity for momentum
+      applyRotationX = dragDeltaY.value * DRAG_SENSITIVITY * DEG_TO_RAD
+      applyRotationY = dragDeltaX.value * DRAG_SENSITIVITY * DEG_TO_RAD
+
+      // Calculate velocity (difference from previous frame)
+      const velocityX = applyRotationX - previousDragDeltaX * DRAG_SENSITIVITY * DEG_TO_RAD
+      const velocityY = applyRotationY - previousDragDeltaY * DRAG_SENSITIVITY * DEG_TO_RAD
+
+      // Update momentum with velocity (scaled for natural feel)
+      momentumX = velocityX
+      momentumY = velocityY
+
+      // Store current drag values for next frame's velocity calculation
+      previousDragDeltaX = dragDeltaX.value
+      previousDragDeltaY = dragDeltaY.value
+    } else {
+      // After drag: apply momentum with decay
+      if (Math.abs(momentumX) > MOMENTUM_THRESHOLD || Math.abs(momentumY) > MOMENTUM_THRESHOLD) {
+        applyRotationX = momentumX
+        applyRotationY = momentumY
+
+        // Decay momentum
+        momentumX *= MOMENTUM_DECAY
+        momentumY *= MOMENTUM_DECAY
+      }
+
+      // Reset previous drag values
+      previousDragDeltaX = 0
+      previousDragDeltaY = 0
+    }
 
     // Apply world-axis rotation to helper object
     rotationHelper.quaternion.copy(targetQuaternion)
-    rotationHelper.rotateOnWorldAxis(worldRightAxis, dragXRotation)
-    rotationHelper.rotateOnWorldAxis(worldUpAxis, dragYRotation)
+    rotationHelper.rotateOnWorldAxis(worldRightAxis, applyRotationX)
+    rotationHelper.rotateOnWorldAxis(worldUpAxis, applyRotationY)
 
     // Smooth interpolation using spherical linear interpolation (slerp)
     cube.quaternion.slerp(rotationHelper.quaternion, SLERP_FACTOR)
+
+    // Update target quaternion to track accumulated rotation during momentum
+    // This ensures momentum feels natural and continues from current orientation
+    if (
+      !isDragging.value &&
+      (Math.abs(momentumX) > MOMENTUM_THRESHOLD || Math.abs(momentumY) > MOMENTUM_THRESHOLD)
+    ) {
+      targetQuaternion.copy(rotationHelper.quaternion)
+    }
 
     // Add subtle floating animation
     cube.position.y = Math.sin(Date.now() * 0.001) * 0.05
