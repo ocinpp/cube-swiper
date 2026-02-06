@@ -15,8 +15,8 @@ export function useCubeNavigation(
   const dragSpeed = ref(0)
 
   // Thresholds - increased to distinguish free rotation from swipe navigation
-  const swipeThreshold = 100  // Increased from 50 - requires longer distance for nav
-  const speedThreshold = 1.5  // Increased from 0.8 - requires faster flick for nav
+  const swipeThreshold = 100 // Increased from 50 - requires longer distance for nav
+  const speedThreshold = 1.5 // Increased from 0.8 - requires faster flick for nav
 
   // For speed calculation
   let lastX = 0
