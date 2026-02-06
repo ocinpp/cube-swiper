@@ -165,8 +165,6 @@ const rotationHelper = new THREE.Object3D()
 // Momentum state for realistic swipe decay
 let momentumX = 0 // X-axis momentum (radians per frame)
 let momentumY = 0 // Y-axis momentum (radians per frame)
-let previousDragDeltaX = 0 // Track previous drag for velocity calculation
-let previousDragDeltaY = 0
 
 // Face visibility tracking
 const faceNormals = [
@@ -367,21 +365,14 @@ const animate = () => {
     let applyRotationY = 0 // Total Y-axis rotation to apply this frame
 
     if (isDragging.value) {
-      // During drag: calculate drag rotation and track velocity for momentum
+      // During drag: apply rotation directly and track for momentum
       applyRotationX = dragDeltaY.value * DRAG_SENSITIVITY * DEG_TO_RAD
       applyRotationY = dragDeltaX.value * DRAG_SENSITIVITY * DEG_TO_RAD
 
-      // Calculate velocity (difference from previous frame)
-      const velocityX = applyRotationX - previousDragDeltaX * DRAG_SENSITIVITY * DEG_TO_RAD
-      const velocityY = applyRotationY - previousDragDeltaY * DRAG_SENSITIVITY * DEG_TO_RAD
-
-      // Update momentum with velocity (scaled for natural feel)
-      momentumX = velocityX
-      momentumY = velocityY
-
-      // Store current drag values for next frame's velocity calculation
-      previousDragDeltaX = dragDeltaX.value
-      previousDragDeltaY = dragDeltaY.value
+      // Track current drag as momentum for smooth transition when released
+      // Scale down slightly for more natural feel
+      momentumX = applyRotationX * 0.5
+      momentumY = applyRotationY * 0.5
     } else {
       // After drag: apply momentum with decay
       if (Math.abs(momentumX) > MOMENTUM_THRESHOLD || Math.abs(momentumY) > MOMENTUM_THRESHOLD) {
@@ -392,10 +383,6 @@ const animate = () => {
         momentumX *= MOMENTUM_DECAY
         momentumY *= MOMENTUM_DECAY
       }
-
-      // Reset previous drag values
-      previousDragDeltaX = 0
-      previousDragDeltaY = 0
     }
 
     // Apply world-axis rotation to helper object
