@@ -529,8 +529,6 @@ moves faces right on screen.
 #### Implementation Flow
 
 1. User drags → `useCubeNavigation` updates `dragDeltaX/Y` and `isDragging`
-
-1. User drags → `useCubeNavigation` updates `dragDeltaX/Y` and `isDragging`
 2. Animation loop applies drag offset using world-axis rotation:
    - Horizontal drag (`dragDeltaX`) → rotates around world Y axis
    - Vertical drag (`dragDeltaY`) → rotates around world X axis

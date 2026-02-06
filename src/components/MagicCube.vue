@@ -495,8 +495,7 @@ onUnmounted(() => {
     renderer.dispose()
   }
 
-  // Clean up rotation helper to prevent memory leak
-  // Note: rotationHelper is not in the scene graph, but has internal state
-  // We don't need to dispose it as it's a simple Object3D, but we set to null for safety
+  // Note: rotationHelper is a module-level const Object3D not in scene graph
+  // No explicit cleanup needed - documented here for completeness
 })
 </script>
