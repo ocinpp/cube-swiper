@@ -167,6 +167,8 @@ const rotationHelper = new THREE.Object3D()
 // Momentum state for realistic swipe decay
 let momentumX = 0 // X-axis momentum (radians per frame)
 let momentumY = 0 // Y-axis momentum (radians per frame)
+let lastDragDeltaX = 0 // Track previous frame to detect if actually moving
+let lastDragDeltaY = 0
 
 // Face visibility tracking
 const faceNormals = [
@@ -371,14 +373,26 @@ const animate = () => {
       applyRotationX = dragDeltaY.value * DRAG_SENSITIVITY * DEG_TO_RAD
       applyRotationY = dragDeltaX.value * DRAG_SENSITIVITY * DEG_TO_RAD
 
-      // Only capture momentum for faster movements (flicks), not slow drags
-      // This prevents slow positioning from creating unwanted spin
-      const isFastMovementX = Math.abs(applyRotationX) > MOMENTUM_MINIMUM
-      const isFastMovementY = Math.abs(applyRotationY) > MOMENTUM_MINIMUM
+      // Check if actually moving (drag delta changing) vs holding still
+      const isMovingX = Math.abs(dragDeltaY.value - lastDragDeltaY) > 0.1
+      const isMovingY = Math.abs(dragDeltaX.value - lastDragDeltaX) > 0.1
+
+      // Only capture momentum when actually moving fast
+      // Holding still (velocity ≈ 0) should not create momentum
+      const isFastMovementX = isMovingX && Math.abs(applyRotationX) > MOMENTUM_MINIMUM
+      const isFastMovementY = isMovingY && Math.abs(applyRotationY) > MOMENTUM_MINIMUM
 
       momentumX = isFastMovementX ? applyRotationX * MOMENTUM_SCALE : 0
       momentumY = isFastMovementY ? applyRotationY * MOMENTUM_SCALE : 0
+
+      // Store current drag for next frame
+      lastDragDeltaX = dragDeltaX.value
+      lastDragDeltaY = dragDeltaY.value
     } else {
+      // Reset tracking when not dragging
+      lastDragDeltaX = 0
+      lastDragDeltaY = 0
+
       // After drag: apply momentum with decay
       if (Math.abs(momentumX) > MOMENTUM_THRESHOLD || Math.abs(momentumY) > MOMENTUM_THRESHOLD) {
         applyRotationX = momentumX
