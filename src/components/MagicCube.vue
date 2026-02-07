@@ -147,7 +147,7 @@ let animationFrameId: number
 const DRAG_SENSITIVITY = 0.3 // Multiplier for drag delta to rotation
 const SLERP_FACTOR = 0.08 // Smooth interpolation factor (0-1, higher = faster)
 const DEG_TO_RAD = Math.PI / 180 // Conversion factor for degrees to radians
-const MOMENTUM_SCALE = 2.0 // Scale factor for velocity-based momentum
+const MOMENTUM_SCALE = 10.0 // Scale factor for speed-based momentum
 const MOMENTUM_DECAY = 0.95 // Momentum decay per frame (0-1, higher = longer momentum)
 const MOMENTUM_THRESHOLD = 0.0005 // Stop momentum when below this threshold (radians)
 
@@ -166,8 +166,6 @@ const rotationHelper = new THREE.Object3D()
 // Momentum state for realistic swipe decay
 let momentumX = 0 // X-axis momentum (radians per frame)
 let momentumY = 0 // Y-axis momentum (radians per frame)
-let lastDragDeltaX = 0 // Previous frame drag for velocity calculation
-let lastDragDeltaY = 0
 
 // Face visibility tracking
 const faceNormals = [
@@ -372,23 +370,16 @@ const animate = () => {
       applyRotationX = dragDeltaY.value * DRAG_SENSITIVITY * DEG_TO_RAD
       applyRotationY = dragDeltaX.value * DRAG_SENSITIVITY * DEG_TO_RAD
 
-      // Track velocity (change in drag delta) for momentum
-      // Only fast movements create momentum, slow steady movements don't
-      const velocityX = (dragDeltaY.value - lastDragDeltaY) * DRAG_SENSITIVITY * DEG_TO_RAD
-      const velocityY = (dragDeltaX.value - lastDragDeltaX) * DRAG_SENSITIVITY * DEG_TO_RAD
+      // Calculate momentum based on drag speed and direction
+      // Use the sign of the drag delta (direction) times the speed (magnitude)
+      const signX = dragDeltaY.value > 0 ? 1 : dragDeltaY.value < 0 ? -1 : 0
+      const signY = dragDeltaX.value > 0 ? 1 : dragDeltaX.value < 0 ? -1 : 0
 
-      // Only build momentum from velocity (flicks), not steady dragging
-      momentumX = velocityX * MOMENTUM_SCALE
-      momentumY = velocityY * MOMENTUM_SCALE
-
-      // Store current drag for next frame's velocity calculation
-      lastDragDeltaX = dragDeltaX.value
-      lastDragDeltaY = dragDeltaY.value
+      // Only fast movements (flicks) create momentum
+      // Slow steady dragging won't trigger significant momentum
+      momentumX = signX * dragSpeed.value * MOMENTUM_SCALE * DEG_TO_RAD
+      momentumY = signY * dragSpeed.value * MOMENTUM_SCALE * DEG_TO_RAD
     } else {
-      // Reset last drag values to prevent false velocity on next drag start
-      lastDragDeltaX = 0
-      lastDragDeltaY = 0
-
       // After drag: apply momentum with decay
       if (Math.abs(momentumX) > MOMENTUM_THRESHOLD || Math.abs(momentumY) > MOMENTUM_THRESHOLD) {
         applyRotationX = momentumX
@@ -492,7 +483,7 @@ const handleResize = () => {
 }
 
 // Use navigation composable for drag tracking only (no navigation)
-const { dragDeltaX, dragDeltaY, isDragging } = useCubeNavigation(
+const { dragDeltaX, dragDeltaY, dragSpeed, isDragging } = useCubeNavigation(
   props.images.length,
   () => {} // No-op callback - navigation disabled
 )
