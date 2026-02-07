@@ -147,9 +147,9 @@ let animationFrameId: number
 const DRAG_SENSITIVITY = 0.3 // Multiplier for drag delta to rotation
 const SLERP_FACTOR = 0.08 // Smooth interpolation factor (0-1, higher = faster)
 const DEG_TO_RAD = Math.PI / 180 // Conversion factor for degrees to radians
-const MOMENTUM_SCALE = 10.0 // Scale factor for speed-based momentum
-const MOMENTUM_DECAY = 0.95 // Momentum decay per frame (0-1, higher = longer momentum)
-const MOMENTUM_THRESHOLD = 0.0005 // Stop momentum when below this threshold (radians)
+const MOMENTUM_SCALE = 0.1 // Scale down last rotation for momentum (0.1 = 10%)
+const MOMENTUM_DECAY = 0.92 // Momentum decay per frame (0-1, higher = longer momentum)
+const MOMENTUM_THRESHOLD = 0.0001 // Stop momentum when below this threshold (radians)
 
 // World axes for camera-relative rotation
 // Screen X-axis (horizontal) → World Y-axis rotation (makes things move left/right on screen)
@@ -370,15 +370,11 @@ const animate = () => {
       applyRotationX = dragDeltaY.value * DRAG_SENSITIVITY * DEG_TO_RAD
       applyRotationY = dragDeltaX.value * DRAG_SENSITIVITY * DEG_TO_RAD
 
-      // Calculate momentum based on drag speed and direction
-      // Use the sign of the drag delta (direction) times the speed (magnitude)
-      const signX = dragDeltaY.value > 0 ? 1 : dragDeltaY.value < 0 ? -1 : 0
-      const signY = dragDeltaX.value > 0 ? 1 : dragDeltaX.value < 0 ? -1 : 0
-
-      // Only fast movements (flicks) create momentum
-      // Slow steady dragging won't trigger significant momentum
-      momentumX = signX * dragSpeed.value * MOMENTUM_SCALE * DEG_TO_RAD
-      momentumY = signY * dragSpeed.value * MOMENTUM_SCALE * DEG_TO_RAD
+      // Set momentum to match current drag rotation
+      // This ensures smooth continuation from whatever the current rotation is
+      // Scale down so it's not too strong
+      momentumX = applyRotationX * MOMENTUM_SCALE
+      momentumY = applyRotationY * MOMENTUM_SCALE
     } else {
       // After drag: apply momentum with decay
       if (Math.abs(momentumX) > MOMENTUM_THRESHOLD || Math.abs(momentumY) > MOMENTUM_THRESHOLD) {
@@ -483,7 +479,7 @@ const handleResize = () => {
 }
 
 // Use navigation composable for drag tracking only (no navigation)
-const { dragDeltaX, dragDeltaY, dragSpeed, isDragging } = useCubeNavigation(
+const { dragDeltaX, dragDeltaY, isDragging } = useCubeNavigation(
   props.images.length,
   () => {} // No-op callback - navigation disabled
 )
