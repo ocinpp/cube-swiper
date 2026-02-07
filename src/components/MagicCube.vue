@@ -147,10 +147,10 @@ let animationFrameId: number
 const DRAG_SENSITIVITY = 0.3 // Multiplier for drag delta to rotation
 const SLERP_FACTOR = 0.08 // Smooth interpolation factor (0-1, higher = faster)
 const DEG_TO_RAD = Math.PI / 180 // Conversion factor for degrees to radians
-const MOMENTUM_SCALE = 0.15 // Scale factor for momentum
-const MOMENTUM_DECAY = 0.92 // Momentum decay per frame (0-1, higher = longer momentum)
+const MOMENTUM_SCALE = 0.12 // Scale factor for momentum (lower for shorter spin)
+const MOMENTUM_DECAY = 0.9 // Momentum decay per frame (faster decay)
 const MOMENTUM_THRESHOLD = 0.0001 // Stop momentum when below this threshold (radians)
-const MOMENTUM_MINIMUM = 0.005 // Minimum rotation to trigger momentum (radians) - prevents slow drags from spinning
+const MOMENTUM_MINIMUM = 0.03 // Minimum rotation to trigger momentum (radians) - prevents slow drags from spinning (~1.7 degrees)
 
 // World axes for camera-relative rotation
 // Screen X-axis (horizontal) → World Y-axis rotation (makes things move left/right on screen)
