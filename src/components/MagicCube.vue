@@ -147,9 +147,10 @@ let animationFrameId: number
 const DRAG_SENSITIVITY = 0.3 // Multiplier for drag delta to rotation
 const SLERP_FACTOR = 0.08 // Smooth interpolation factor (0-1, higher = faster)
 const DEG_TO_RAD = Math.PI / 180 // Conversion factor for degrees to radians
-const MOMENTUM_SCALE = 0.1 // Scale down last rotation for momentum (0.1 = 10%)
+const MOMENTUM_SCALE = 0.15 // Scale factor for momentum
 const MOMENTUM_DECAY = 0.92 // Momentum decay per frame (0-1, higher = longer momentum)
 const MOMENTUM_THRESHOLD = 0.0001 // Stop momentum when below this threshold (radians)
+const MOMENTUM_MINIMUM = 0.005 // Minimum rotation to trigger momentum (radians) - prevents slow drags from spinning
 
 // World axes for camera-relative rotation
 // Screen X-axis (horizontal) → World Y-axis rotation (makes things move left/right on screen)
@@ -366,15 +367,17 @@ const animate = () => {
     let applyRotationY = 0 // Total Y-axis rotation to apply this frame
 
     if (isDragging.value) {
-      // During drag: apply rotation directly and track for momentum
+      // During drag: apply rotation directly
       applyRotationX = dragDeltaY.value * DRAG_SENSITIVITY * DEG_TO_RAD
       applyRotationY = dragDeltaX.value * DRAG_SENSITIVITY * DEG_TO_RAD
 
-      // Set momentum to match current drag rotation
-      // This ensures smooth continuation from whatever the current rotation is
-      // Scale down so it's not too strong
-      momentumX = applyRotationX * MOMENTUM_SCALE
-      momentumY = applyRotationY * MOMENTUM_SCALE
+      // Only capture momentum for faster movements (flicks), not slow drags
+      // This prevents slow positioning from creating unwanted spin
+      const isFastMovementX = Math.abs(applyRotationX) > MOMENTUM_MINIMUM
+      const isFastMovementY = Math.abs(applyRotationY) > MOMENTUM_MINIMUM
+
+      momentumX = isFastMovementX ? applyRotationX * MOMENTUM_SCALE : 0
+      momentumY = isFastMovementY ? applyRotationY * MOMENTUM_SCALE : 0
     } else {
       // After drag: apply momentum with decay
       if (Math.abs(momentumX) > MOMENTUM_THRESHOLD || Math.abs(momentumY) > MOMENTUM_THRESHOLD) {
