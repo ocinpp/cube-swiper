@@ -28,9 +28,10 @@ All critical issues and major features have been implemented. The application is
 - ✅ Camera-relative rotation using quaternions
 - ✅ World-axis rotation for consistent screen-space behavior
 - ✅ Swipe direction matches user expectations regardless of orientation
+- ✅ Realistic momentum/inertia system with movement detection
 - ✅ Code quality improvements: extracted magic numbers to named constants
 - ✅ Comprehensive drag-to-axis mapping documentation
-- ✅ All code review feedback addressed
+- ✅ All code review feedback addressed through two rounds of review
 
 **Remaining Enhancements (Phase 3):**
 - Accessibility improvements (ARIA, keyboard nav)
@@ -535,9 +536,12 @@ moves faces right on screen.
    - Horizontal drag (`dragDeltaX`) → rotates around world Y axis
    - Vertical drag (`dragDeltaY`) → rotates around world X axis
    - Uses `rotateOnWorldAxis()` on a helper object for screen-space rotation
+   - **Movement detection**: Checks if drag delta is changing vs holding still
+   - **Momentum capture**: Only fast movements (> 0.03 radians) create momentum
 3. Cube quaternion smoothly interpolates to target using `slerp()` with `SLERP_FACTOR` (0.08)
 4. On pointer up → current cube quaternion becomes new target quaternion (using `clone()`)
-5. No snap-back: orientation persists smoothly after drag release
+5. **Momentum decay**: If momentum exists, continues rotation with exponential decay (× 0.9 per frame)
+6. No snap-back: orientation persists smoothly after drag release
 
 **Why Quaternions?**
 - **Consistent behavior**: Rotation direction is always relative to camera/screen, not cube orientation
@@ -545,25 +549,111 @@ moves faces right on screen.
 - **Smooth interpolation**: Slerp provides natural, smooth rotation transitions
 - **Intuitive UX**: When cube is upside down, right swipe still moves faces right on screen
 
-**Implementation** (`src/components/MagicCube.vue:354-368`):
+**Implementation** (`src/components/MagicCube.vue:147-153`):
 ```typescript
 // Rotation configuration constants
 const DRAG_SENSITIVITY = 0.3
 const SLERP_FACTOR = 0.08
 const DEG_TO_RAD = Math.PI / 180
 
+// Momentum configuration
+const MOMENTUM_SCALE = 0.12      // 12% of rotation becomes momentum
+const MOMENTUM_DECAY = 0.9       // Loses 10% per frame
+const MOMENTUM_THRESHOLD = 0.0001 // Stop threshold
+const MOMENTUM_MINIMUM = 0.03     // Minimum speed to trigger momentum
+
 // World axes for camera-relative rotation
-const worldUpAxis = new THREE.Vector3(0, 1, 0) // Rotation around Y moves faces horizontally
-const worldRightAxis = new THREE.Vector3(1, 0, 0) // Rotation around X moves faces vertically
+const worldUpAxis = new THREE.Vector3(0, 1, 0)
+const worldRightAxis = new THREE.Vector3(1, 0, 0)
 
 // Apply drag offset using world axes
 rotationHelper.quaternion.copy(targetQuaternion)
 rotationHelper.rotateOnWorldAxis(worldRightAxis, dragXRotation)
 rotationHelper.rotateOnWorldAxis(worldUpAxis, dragYRotation)
 
-// Smooth interpolation
+// Smooth interpolation with slerp
 cube.quaternion.slerp(rotationHelper.quaternion, SLERP_FACTOR)
 ```
+
+### Momentum/Inertia System
+
+The cube features a realistic momentum system that provides satisfying spin after fast flicks while maintaining precise control for slow movements.
+
+#### Design Goals
+
+1. **Fast flicks should spin** - Quick movements create satisfying momentum
+2. **Slow drags should stop** - Precise positioning without unwanted spin
+3. **Holding still should not create momentum** - Stop during drag = no momentum on release
+4. **Natural decay** - Momentum should fade smoothly like a real physical object
+
+#### Implementation
+
+The system uses **three key mechanisms** to achieve these goals:
+
+**1. Movement Detection** (`src/components/MagicCube.vue:168-169, 376-377`)
+```typescript
+let lastDragDeltaX = 0
+let lastDragDeltaY = 0
+
+// Check if actually moving (drag delta changing) vs holding still
+const isMovingX = Math.abs(dragDeltaX.value - lastDragDeltaX) > 0.1
+const isMovingY = Math.abs(dragDeltaY.value - lastDragDeltaY) > 0.1
+```
+- Tracks previous frame's drag delta
+- Compares with current to detect actual movement
+- Only captures momentum when user is **actually moving**, not holding still
+
+**2. Minimum Threshold** (`MOMENTUM_MINIMUM = 0.03` radians ≈ 1.7°)
+```typescript
+const isFastMovementX = isMovingX && Math.abs(applyRotationX) > MOMENTUM_MINIMUM
+```
+- Prevents slow drags from creating momentum
+- Only genuine fast flicks trigger spin
+- Threshold tunable via constant
+
+**3. Momentum Capture** (`src/components/MagicCube.vue:382-383`)
+```typescript
+momentumX = isFastMovementX ? applyRotationX * MOMENTUM_SCALE : 0
+momentumY = isFastMovementY ? applyRotationY * MOMENTUM_SCALE : 0
+```
+- Momentum = current rotation × scale factor (12%)
+- If not moving fast enough, momentum = 0
+- Scales directly from rotation being applied (ensures correct direction)
+
+**4. Decay** (`src/components/MagicCube.vue:394-396`)
+```typescript
+if (|momentum| > threshold) {
+  applyRotation = momentum
+  momentum *= MOMENTUM_DECAY  // 0.9 per frame
+}
+```
+- Exponential decay: each frame multiplies by 0.9
+- Creates smooth, natural slowdown
+- Stops when below minimum threshold (0.0001 radians)
+
+#### Configuration Constants
+
+```typescript
+const MOMENTUM_SCALE = 0.12      // 12% of rotation becomes momentum
+const MOMENTUM_DECAY = 0.9       // Loses 10% per frame
+const MOMENTUM_THRESHOLD = 0.0001 // Stop when below this
+const MOMENTUM_MINIMUM = 0.03     // Only movements faster than 1.7° trigger momentum
+```
+
+**Tuning Guide:**
+- `MOMENTUM_SCALE` higher = longer spin
+- `MOMENTUM_DECAY` higher (closer to 1.0) = slower fade
+- `MOMENTUM_MINIMUM` higher = only faster flicks spin
+- `MOMENTUM_THRESHOLD` lower = spins until almost stopped
+
+#### Behavior Examples
+
+| User Action | Movement Detected | Rotation | Momentum | Result |
+|------------|------------------|----------|----------|--------|
+| Slow drag (0.5°/frame) | ✅ Yes | < threshold | 0 | Stops on release |
+| Fast flick (3°/frame) | ✅ Yes | > threshold | rotation × 0.12 | Spins then fades |
+| Drag → stop → hold | ❌ No (no change) | N/A | 0 | Stops dead |
+| Flick → release | ✅ Yes | > threshold | Captured | Smooth spin |
 
 ### Code Review Feedback (Phase 2.5)
 
