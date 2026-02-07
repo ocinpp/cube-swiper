@@ -103,6 +103,10 @@ const imageUrls = [
   - Swipe up → faces rotate up on screen
   - Swipe down → faces rotate down on screen
   - Behavior is consistent regardless of cube orientation (upside down, sideways, etc.)
+- **Momentum/Inertia**: Fast flicks create natural spin that gradually decays
+  - Quick flick → cube continues spinning with momentum
+  - Slow drag or holding still → no momentum, stops on release
+  - Momentum decays smoothly using exponential decay (0.9 per frame)
 - The cube displays images on all 6 faces
 - **Face images change automatically** when they transition from off-view to on-view
 - Each face cycles through the provided image array independently
@@ -154,9 +158,13 @@ The application has completed critical fixes and feature enhancements, making it
 ### Completed (Phase 2.5 - UX Improvements)
 - ✅ **Camera-Relative Rotation**: Quaternion-based rotation ensures swipe direction matches screen direction regardless of cube orientation
 - ✅ **World-Axis Rotation**: Uses `rotateOnWorldAxis()` for consistent screen-space rotation behavior
-- ✅ **Code Quality**: All magic numbers extracted to named constants (DRAG_SENSITIVITY, SLERP_FACTOR, DEG_TO_RAD)
+- ✅ **Realistic Momentum/Inertia**: Fast flicks create natural spin that decays smoothly
+  - Movement detection prevents momentum when holding still
+  - Minimum threshold prevents slow drags from creating unwanted spin
+  - Configurable decay rate and scale for fine-tuned feel
+- ✅ **Code Quality**: All magic numbers extracted to named constants
 - ✅ **Documentation**: Comprehensive drag-to-axis mapping diagram added
-- ✅ **Code Review**: All feedback addressed - Important and Minor issues resolved
+- ✅ **Code Review**: All feedback addressed through two rounds of review
 
 ### Remaining Improvements (Phase 3 - Enhancements)
 - ⏳ Accessibility: ARIA labels and keyboard navigation support
