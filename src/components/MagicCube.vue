@@ -147,8 +147,9 @@ let animationFrameId: number
 const DRAG_SENSITIVITY = 0.3 // Multiplier for drag delta to rotation
 const SLERP_FACTOR = 0.08 // Smooth interpolation factor (0-1, higher = faster)
 const DEG_TO_RAD = Math.PI / 180 // Conversion factor for degrees to radians
-const MOMENTUM_DECAY = 0.95 // Momentum decay per frame (0-1, higher = longer momentum)
-const MOMENTUM_THRESHOLD = 0.001 // Stop momentum when below this threshold (radians)
+const MOMENTUM_SCALE = 0.1 // Scale factor for momentum (lower = less spin after release)
+const MOMENTUM_DECAY = 0.92 // Momentum decay per frame (0-1, higher = longer momentum)
+const MOMENTUM_THRESHOLD = 0.0001 // Stop momentum when below this threshold (radians)
 
 // World axes for camera-relative rotation
 // Screen X-axis (horizontal) → World Y-axis rotation (makes things move left/right on screen)
@@ -370,9 +371,9 @@ const animate = () => {
       applyRotationY = dragDeltaX.value * DRAG_SENSITIVITY * DEG_TO_RAD
 
       // Track current drag as momentum for smooth transition when released
-      // Scale down slightly for more natural feel
-      momentumX = applyRotationX * 0.5
-      momentumY = applyRotationY * 0.5
+      // Scale down significantly for subtle continuation
+      momentumX = applyRotationX * MOMENTUM_SCALE
+      momentumY = applyRotationY * MOMENTUM_SCALE
     } else {
       // After drag: apply momentum with decay
       if (Math.abs(momentumX) > MOMENTUM_THRESHOLD || Math.abs(momentumY) > MOMENTUM_THRESHOLD) {
