@@ -12,6 +12,7 @@ export type CropStrategy = 'cover' | 'contain' | 'fill'
 export interface CropOptions {
   strategy?: CropStrategy
   targetSize?: number
+  anisotropy?: number // Anisotropic filtering level (default: 16, safe for modern GPUs)
 }
 
 /**
@@ -21,7 +22,7 @@ export async function loadCroppedTexture(
   imageUrl: string,
   options: CropOptions = {}
 ): Promise<THREE.CanvasTexture> {
-  const { strategy = 'cover', targetSize = 2048 } = options
+  const { strategy = 'cover', targetSize = 2048, anisotropy = 16 } = options
 
   try {
     // Load the image
@@ -34,6 +35,10 @@ export async function loadCroppedTexture(
     const texture = new THREE.CanvasTexture(canvas)
     texture.colorSpace = THREE.SRGBColorSpace
     texture.needsUpdate = true
+    texture.minFilter = THREE.LinearMipmapLinearFilter
+    texture.magFilter = THREE.LinearFilter
+    texture.anisotropy = anisotropy // Default 16 is safe for modern GPUs (will clamp to max supported)
+    texture.generateMipmaps = true
 
     return texture
   } catch (error) {

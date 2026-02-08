@@ -433,6 +433,7 @@ const initThreeJS = async () => {
   // Create materials for each face - MeshBasicMaterial for 100% browser-native brightness
   const materials = textures.map((texture) => {
     texture.colorSpace = THREE.SRGBColorSpace
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
 
     return new THREE.MeshBasicMaterial({
       map: texture,
@@ -456,7 +457,8 @@ const initThreeJS = async () => {
   edges = new THREE.LineSegments(edgesGeometry, edgesMaterial)
   cube.add(edges)
 
-  // Soft studio lighting optimized for tone mapping
+  // Soft studio lighting for edge glow and particles
+  // Note: MeshBasicMaterial is unlit, so these lights only affect edge glow and particles
   const ambientLight = new THREE.AmbientLight(0xfff5f0, 0.8)
   scene.add(ambientLight)
 
@@ -473,7 +475,7 @@ const initThreeJS = async () => {
   rimLight.position.set(-4, 2, -3)
   scene.add(rimLight)
 
-  // Generate PMREM environment for realistic lighting
+  // Generate PMREM environment for edge and particle lighting
   const pmremGenerator = new THREE.PMREMGenerator(renderer)
   const envScene = new THREE.Scene()
   envScene.background = new THREE.Color(0xf9f6f1)
@@ -539,11 +541,11 @@ async function updateFaceTexture(faceIndex: number, imageIndex: number): Promise
       targetSize: props.cropSize,
     })
 
-    // Set anisotropy for runtime-loaded textures
-    texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+    // Set anisotropy for runtime-loaded textures (matches initial texture setting)
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy() // Will clamp to GPU max if needed
 
     // Update the material's map (cube.material is an array of 6 materials)
-    const materials = cube.material as THREE.MeshPhysicalMaterial[]
+    const materials = cube.material as THREE.MeshBasicMaterial[]
     const material = materials[faceIndex]
 
     // Dispose old texture to prevent memory leak
@@ -909,7 +911,7 @@ onUnmounted(() => {
 
   // Dispose of cube resources
   if (cube) {
-    const materials = cube.material as THREE.MeshPhysicalMaterial[]
+    const materials = cube.material as THREE.MeshBasicMaterial[]
     materials.forEach((material) => {
       if (material.map) {
         material.map.dispose()
