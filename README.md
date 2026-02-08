@@ -87,6 +87,15 @@ const imageUrls = [
   - `loop`: Repeat sequence indefinitely (default: `true`)
   - `rotationSpeed`: Slerp factor for smooth rotation (default: `0.02`, lower = smoother)
 
+### Material & Rendering
+
+- **MeshBasicMaterial**: Uses unlit material for 100% browser-native brightness
+  - Images display at identical brightness to regular `<img>` tags
+  - No shading or lighting calculations affect image brightness
+  - Flat, clean aesthetic perfect for image viewing
+- **NoToneMapping**: Disabled for accurate color reproduction
+- **SRGBColorSpace**: Ensures proper color display across devices
+
 ### Cropping Examples
 
 ```vue
@@ -344,6 +353,15 @@ The application has completed critical fixes and feature enhancements, making it
 - ✅ **HUD Integration**: Showcase status visible in top-left panel
   - Shows "SHOWCASE" when running
   - Shows "SHOWCASE (PAUSED)" when paused
+
+### Completed (Phase 2.8 - Native Brightness)
+- ✅ **MeshBasicMaterial**: Switched to unlit material for 100% browser-native brightness
+  - Images display at identical brightness to regular `<img>` tags
+  - No shading or lighting calculations affect image brightness
+  - Flat, clean aesthetic optimized for image viewing
+- ✅ **NoToneMapping**: Disabled tone mapping for accurate color reproduction
+- ✅ **Simplified Rendering**: Removed exposure control (no longer needed)
+- ✅ **Performance**: Slightly better performance with fewer calculations
 
 ### Code Review Fixes (Latest)
 - ✅ **Race Condition Fix**: Guard checks prevent accessing empty sequences
