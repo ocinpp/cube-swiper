@@ -1,7 +1,40 @@
 <template>
   <div class="w-full h-dvh overflow-hidden">
-    <!-- Default behavior: center-crop non-square images to prevent distortion -->
+    <!-- Showcase mode example: custom face sequence with control button -->
+    <MagicCube
+      ref="cubeRef"
+      :images="sampleImages"
+      :showcase-mode="{
+        enabled: true,
+        sequence: [0, 2, 4, 5],
+        faceDuration: 3000,
+        autoStart: false,
+        loop: true,
+        rotationSpeed: 0.02
+      }"
+      @showcase-started="onShowcaseStarted"
+      @showcase-stopped="onShowcaseStopped"
+      @showcase-completed="onShowcaseCompleted"
+    />
+
+    <!-- Showcase control button -->
+    <div class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+      <button
+        @click="toggleShowcase"
+        class="px-6 py-3 rounded-lg font-mono text-sm tracking-wider transition-all duration-300"
+        :class="
+          isShowcaseRunning
+            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/50 hover:bg-amber-500/30'
+            : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 hover:bg-cyan-500/30'
+        "
+      >
+        {{ isShowcaseRunning ? '⏹ Stop Showcase' : '▶ Start Showcase' }}
+      </button>
+    </div>
+
+    <!-- Default behavior: center-crop non-square images to prevent distortion
     <MagicCube :images="sampleImages" />
+    -->
 
     <!-- Optional: Configure cropping strategy
     <MagicCube
@@ -14,6 +47,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import MagicCube from './components/MagicCube.vue'
 
 // Auto-load all images from src/assets/images directory
@@ -43,5 +77,29 @@ if (sampleImages.length === 0) {
     'https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=800&q=80',
     'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=800&q=80'
   )
+}
+
+// Showcase control
+const cubeRef = ref<InstanceType<typeof MagicCube>>()
+const isShowcaseRunning = ref(false)
+
+function toggleShowcase() {
+  if (!cubeRef.value) return
+  cubeRef.value.toggleShowcase()
+}
+
+function onShowcaseStarted() {
+  isShowcaseRunning.value = true
+  console.log('Showcase started')
+}
+
+function onShowcaseStopped() {
+  isShowcaseRunning.value = false
+  console.log('Showcase stopped')
+}
+
+function onShowcaseCompleted() {
+  isShowcaseRunning.value = false
+  console.log('Showcase completed (non-looping)')
 }
 </script>

@@ -59,8 +59,25 @@
       <div class="hud-subtitle">Image Viewer v1.0</div>
       <div class="hud-divider"></div>
       <div class="hud-label">System Status</div>
-      <div class="hud-value" :class="isDragging ? 'hud-value--warn' : 'hud-value--accent'">
-        {{ isDragging ? 'MANUAL OVERRIDE' : 'ACTIVE' }}
+      <div
+        class="hud-value"
+        :class="
+          isShowcaseActive
+            ? 'hud-value--warn'
+            : isDragging
+              ? 'hud-value--warn'
+              : 'hud-value--accent'
+        "
+      >
+        {{
+          isShowcaseActive
+            ? isShowcasePaused
+              ? 'SHOWCASE (PAUSED)'
+              : 'SHOWCASE'
+            : isDragging
+              ? 'MANUAL OVERRIDE'
+              : 'ACTIVE'
+        }}
       </div>
     </div>
 
@@ -100,21 +117,41 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import * as THREE from 'three'
 import { useCubeNavigation } from '../composables/useCubeNavigation'
 import { loadCroppedTexture, type CropStrategy } from '../utils/textureCropping'
+
+interface ShowcaseMode {
+  enabled: boolean
+  sequence: number[]
+  faceDuration?: number
+  autoStart?: boolean
+  loop?: boolean
+  rotationSpeed?: number
+}
 
 interface Props {
   images: string[]
   cropStrategy?: CropStrategy
   cropSize?: number
+  showcaseMode?: ShowcaseMode
 }
 
 const props = withDefaults(defineProps<Props>(), {
   cropStrategy: 'cover',
   cropSize: 2048,
+  showcaseMode: undefined,
 })
+
+// Define emits for showcase state changes
+const emit = defineEmits<{
+  showcaseStarted: []
+  showcaseStopped: []
+  showcasePaused: []
+  showcaseResumed: []
+  showcaseCompleted: [] // For non-looping sequences
+}>()
 
 const container = ref<HTMLDivElement>()
 const canvas = ref<HTMLCanvasElement>()
@@ -184,10 +221,86 @@ let faceImageIndices = [0, 1, 2, 3, 4, 5] // Initially mapped 1:1
 let faceChangeTimestamps = [0, 0, 0, 0, 0, 0]
 const COOLDOWN_MS = 3000 // 3 seconds
 
+// Debug mode check for console logging
+const DEBUG = import.meta.env.DEV
+
+// Showcase mode state
+const isShowcaseActive = ref(false)
+const isShowcasePaused = ref(false) // Pause state for showcase
+const showcaseCurrentIndex = ref(0) // Index in sequence array
+const showcaseAccumulatedTime = ref(0) // Accumulated time using delta time
+let lastShowcaseFrameTime = 0 // Last frame time for delta calculation
+const showcaseSequence = ref<number[]>([])
+const showcaseFaceDuration = ref(3000) // Duration per face (ms)
+const showcaseLoop = ref(true) // Loop sequence
+const showcaseRotationSpeed = ref(0.02) // Slerp factor for showcase
+
+// Computed target face for showcase
+const showcaseTargetFace = computed(() => {
+  // Guard against empty sequences or inactive showcase
+  if (!isShowcaseActive.value || showcaseSequence.value.length === 0) {
+    return 0 // Fallback to face 0
+  }
+  return showcaseSequence.value[showcaseCurrentIndex.value]
+})
+
 // HUD Helper Functions
 function formatRotation(degrees: number): string {
   const normalized = ((degrees % 360) + 360) % 360
   return normalized.toFixed(1)
+}
+
+// Showcase mode: Calculate rotation to align face with camera
+function calculateRotationForFace(faceIndex: number): THREE.Quaternion {
+  if (!cube) return new THREE.Quaternion()
+
+  // Get target face's normal
+  const targetNormal = faceNormals[faceIndex].clone()
+
+  // Camera direction: camera at (0, 0, z) looking at origin
+  // Direction from camera to scene is (0, 0, -1)
+  const cameraDirection = new THREE.Vector3(0, 0, -1)
+
+  // Calculate quaternion to align face normal with camera direction
+  const rotation = new THREE.Quaternion()
+  rotation.setFromUnitVectors(targetNormal, cameraDirection)
+
+  return rotation
+}
+
+// Initialize showcase mode from props
+function initShowcaseMode() {
+  if (!props.showcaseMode || !props.showcaseMode.enabled) {
+    return
+  }
+
+  // Validate sequence
+  if (!props.showcaseMode.sequence || props.showcaseMode.sequence.length === 0) {
+    console.warn('Showcase mode enabled but sequence is empty. Disabling showcase mode.')
+    return
+  }
+
+  // Validate face numbers
+  const invalidFaces = props.showcaseMode.sequence.filter((face) => face < 0 || face > 5)
+  if (invalidFaces.length > 0) {
+    console.error(`Invalid face numbers in sequence: ${invalidFaces}. Must be 0-5.`)
+    return
+  }
+
+  // Set showcase configuration
+  showcaseSequence.value = props.showcaseMode.sequence
+  showcaseFaceDuration.value = props.showcaseMode.faceDuration ?? 3000
+  showcaseLoop.value = props.showcaseMode.loop ?? true
+  showcaseRotationSpeed.value = props.showcaseMode.rotationSpeed ?? 0.02
+
+  // Auto-start if configured
+  if (props.showcaseMode.autoStart) {
+    isShowcaseActive.value = true
+    showcaseCurrentIndex.value = 0
+    showcaseAccumulatedTime.value = 0
+    lastShowcaseFrameTime = performance.now()
+    if (DEBUG) console.log(`🎬 Showcase mode started: sequence [${showcaseSequence.value.join(', ')}]`)
+  }
 }
 
 const initThreeJS = async () => {
@@ -297,6 +410,9 @@ const initThreeJS = async () => {
   animate()
 
   isLoading.value = false
+
+  // Initialize showcase mode after Three.js is ready
+  initShowcaseMode()
 }
 
 // Check which faces are currently visible to the camera
@@ -421,6 +537,59 @@ const animate = () => {
       targetQuaternion.copy(rotationHelper.quaternion)
     }
 
+    // Showcase mode auto-rotation (takes precedence when active)
+    if (isShowcaseActive.value && showcaseSequence.value.length > 0) {
+      const currentTime = performance.now()
+
+      // Initialize frame time on first frame
+      if (lastShowcaseFrameTime === 0) {
+        lastShowcaseFrameTime = currentTime
+      }
+
+      // Only accumulate time when not paused
+      if (!isShowcasePaused.value) {
+        // Calculate delta time for precise timing
+        const deltaTime = currentTime - lastShowcaseFrameTime
+        lastShowcaseFrameTime = currentTime
+
+        // Accumulate time using delta for precision
+        showcaseAccumulatedTime.value += deltaTime
+
+        // Check if it's time to move to next face
+        if (showcaseAccumulatedTime.value > showcaseFaceDuration.value) {
+          // Reset accumulator
+          showcaseAccumulatedTime.value = 0
+
+          // Move to next face in sequence
+          showcaseCurrentIndex.value =
+            (showcaseCurrentIndex.value + 1) % showcaseSequence.value.length
+
+          // End of sequence if not looping
+          if (showcaseCurrentIndex.value === 0 && !showcaseLoop.value) {
+            isShowcaseActive.value = false
+            lastShowcaseFrameTime = 0 // Reset frame time
+            if (DEBUG) console.log('🎬 Showcase mode completed (non-looping)')
+            emit('showcaseCompleted')
+          }
+        }
+      } else {
+        // Just update frame time when paused (don't accumulate)
+        lastShowcaseFrameTime = currentTime
+      }
+
+      // Get target rotation for current face
+      const targetRotation = calculateRotationForFace(showcaseTargetFace.value)
+
+      // Smooth rotation to target face
+      cube.quaternion.slerp(targetRotation, showcaseRotationSpeed.value)
+
+      // Update target quaternion so we don't snap back
+      targetQuaternion.copy(cube.quaternion)
+    } else {
+      // Reset frame time when not active to avoid large delta on restart
+      lastShowcaseFrameTime = 0
+    }
+
     // Add subtle floating animation
     cube.position.y = Math.sin(Date.now() * 0.001) * 0.05
 
@@ -500,6 +669,100 @@ const { dragDeltaX, dragDeltaY, isDragging } = useCubeNavigation(
   props.images.length,
   () => {} // No-op callback - navigation disabled
 )
+
+// Public API for showcase mode control
+
+/**
+ * Starts showcase mode if enabled
+ * @throws {Error} If showcase mode is not enabled in props
+ * @throws {Error} If sequence is empty
+ * @emits showcaseStarted
+ */
+function startShowcase() {
+  if (!props.showcaseMode || !props.showcaseMode.enabled) {
+    if (DEBUG) console.warn('Cannot start showcase: showcase mode is not enabled in props')
+    return
+  }
+
+  if (showcaseSequence.value.length === 0) {
+    if (DEBUG) console.warn('Cannot start showcase: sequence is empty')
+    return
+  }
+
+  isShowcaseActive.value = true
+  showcaseCurrentIndex.value = 0
+  showcaseAccumulatedTime.value = 0
+  lastShowcaseFrameTime = performance.now()
+  if (DEBUG) console.log(`🎬 Showcase mode started: sequence [${showcaseSequence.value.join(', ')}]`)
+  emit('showcaseStarted')
+}
+
+/**
+ * Stops showcase mode
+ * @emits showcaseStopped
+ */
+function stopShowcase() {
+  isShowcaseActive.value = false
+  lastShowcaseFrameTime = 0 // Reset frame time
+  if (DEBUG) console.log('⏹️ Showcase mode stopped')
+  emit('showcaseStopped')
+}
+
+/**
+ * Toggles showcase mode on/off
+ * @emits showcaseStarted | showcaseStopped
+ */
+function toggleShowcase() {
+  if (isShowcaseActive.value) {
+    stopShowcase()
+  } else {
+    startShowcase()
+  }
+}
+
+/**
+ * Pauses showcase mode (keeps active but doesn't advance faces)
+ * @emits showcasePaused
+ */
+function pauseShowcase() {
+  if (!isShowcaseActive.value) {
+    if (DEBUG) console.warn('Cannot pause: showcase is not active')
+    return
+  }
+  isShowcasePaused.value = true
+  if (DEBUG) console.log('⏸️ Showcase mode paused')
+  emit('showcasePaused')
+}
+
+/**
+ * Resumes showcase mode from paused state
+ * @emits showcaseResumed
+ */
+function resumeShowcase() {
+  if (!isShowcaseActive.value) {
+    if (DEBUG) console.warn('Cannot resume: showcase is not active')
+    return
+  }
+  if (!isShowcasePaused.value) {
+    if (DEBUG) console.warn('Cannot resume: showcase is not paused')
+    return
+  }
+  isShowcasePaused.value = false
+  lastShowcaseFrameTime = performance.now() // Reset frame time to avoid large delta
+  if (DEBUG) console.log('▶️ Showcase mode resumed')
+  emit('showcaseResumed')
+}
+
+// Expose public methods
+defineExpose({
+  startShowcase,
+  stopShowcase,
+  toggleShowcase,
+  pauseShowcase,
+  resumeShowcase,
+  isShowcaseActive: () => isShowcaseActive.value,
+  isShowcasePaused: () => isShowcasePaused.value,
+})
 
 // Watch for drag state changes
 watch(isDragging, (dragging, wasDragging) => {
