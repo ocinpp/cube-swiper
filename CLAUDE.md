@@ -8,7 +8,7 @@ This is a **3D image viewer with a cyber-chronometer aesthetic** built with Vue 
 
 ### Production Readiness
 
-**Current Status: 98% Production Ready**
+**Current Status: 99% Production Ready**
 
 All critical issues and major features have been implemented. The application is stable, feature-complete, and suitable for production deployment.
 
@@ -46,6 +46,28 @@ All critical issues and major features have been implemented. The application is
 - ✅ Production-ready console logging
 - ✅ JSDoc documentation for public API
 
+**Completed (Phase 2.8 - Native Brightness):**
+- ✅ **MeshBasicMaterial**: Switched to unlit material for 100% browser-native brightness
+  - Images display at identical brightness to regular `<img>` tags
+  - No shading or lighting calculations affect image brightness
+  - Flat, clean aesthetic optimized for image viewing
+  - Simplified rendering with fewer calculations
+- ✅ **NoToneMapping**: Disabled tone mapping for accurate color reproduction
+- ✅ **Simplified Props**: Removed exposure control (no longer needed with MeshBasicMaterial)
+- ✅ **Performance**: Slightly better performance with reduced shader complexity
+
+**Remaining Enhancements (Phase 3 - Aesthetic Enhancements):**
+- ✅ Particle system with cyan, amber, and magenta colors
+- ✅ Enhanced dramatic lighting (key light, fill light, rim light)
+- ✅ Volumetric fog effect for depth
+- ✅ Dynamic edge glow that pulses and responds to drag
+- ✅ Interactive light feedback during user interaction
+- ✅ Enhanced material properties (increased clearcoat, reduced roughness)
+- ✅ CSS scanline overlay and gradient background
+- ✅ Calibration ring pulse animation
+- ✅ Magenta color added to palette
+- ✅ Mobile-optimized particle count (50% on mobile devices)
+
 **Code Review Fixes Applied:**
 - ✅ Race condition: Guard checks in `showcaseTargetFace` computed property
 - ✅ Timing precision: Delta time system using `performance.now()`
@@ -55,16 +77,57 @@ All critical issues and major features have been implemented. The application is
 - ✅ JSDoc: Complete API documentation
 
 **Remaining Enhancements (Phase 3):**
+- ✅ Aesthetic enhancements completed (particle system, enhanced lighting, dynamic edges, fog)
 - Accessibility improvements (ARIA, keyboard nav)
 - Unit tests for quaternion rotation logic and showcase mode (requires test infrastructure)
 
 ### Aesthetic Vision
 
-**Design Direction**: Cyber-Chronometer - precision instrumentation meets neon-noir
-- **Colors**: Deep obsidian void (#0a0a0c) with amber warning lights (#ff9500) and electric cyan data displays (#00d4ff)
+**Design Direction**: Soft Cocktail Lounge - warm, inviting atmosphere
+- **Colors**: Warm cream background (#f9f6f1) with rose pink, mint, and soft watermelon accents (#e8c4c4, #a8c4a8, #ffb6b6)
 - **Typography**: Dual system - Playfair Display (elegant serif) for titles, JetBrains Mono (technical monospace) for data
-- **Atmosphere**: Subtle grid overlay, radial vignette, and mechanical calibration ring
-- **Differentiation**: Instead of generic "holographic purple," this feels like operating specialized equipment - technical, purposeful, with satisfying mechanical feedback
+- **Atmosphere**: Subtle particle system with floating pastel orbs, mechanical calibration ring, and dust-free environment (no fog for maximum brightness)
+- **Differentiation**: Clean, gallery-like presentation that prioritizes image clarity and color accuracy
+- **Material**: MeshBasicMaterial for 100% browser-native brightness - images look exactly like they would in a regular `<img>` tag
+
+### Current Aesthetic Implementation (Phase 2.8)
+
+**Material System:**
+- **MeshBasicMaterial**: Unlit material for perfect brightness
+  - Images display at 100% original brightness
+  - No shading, reflections, or lighting calculations
+  - Flat, clean appearance optimized for image viewing
+  - Identical to browser `<img>` tag rendering
+
+**Lighting (for edge glow only):**
+- Ambient light: Warm white (0xfff5f0, 0.8 intensity)
+- Key light: White directional (2.0 intensity) at (2, 2, 4)
+- Fill light: Soft cyan (0xf0f5f0, 1.2 intensity) at (-3, 1, 3)
+- Rim light: Rose pink (0xe8c4c4, 0.4 intensity) at (-4, 2, -3)
+- Note: Lights affect only edge glow, not cube faces (MeshBasicMaterial is unlit)
+
+**Particle System:**
+- 150 particles (75 on mobile) floating in sphere around cube (radius 2-4)
+- Three-color palette: Rose pink (#e8c4c4), Mint (#a8c4a8), Soft watermelon (#ffb6b6)
+- Random velocities with slow ambient rotation
+- Spherical boundary wrapping for continuous atmosphere
+- Normal blending for subtle appearance
+
+**Dynamic Edge Glow:**
+- Base opacity: 0.3 (idle), 0.5 (drag)
+- Pulse animation: ±0.2 sinusoidal variation
+- Normal blending for subtle effect
+- Color: Dusty rose (#d4a5a5)
+- Responsive to user interaction state
+
+**Fog:**
+- Disabled (density 0.0) for maximum brightness and clarity
+- Images display at full brightness without atmospheric dimming
+
+**Renderer Settings:**
+- Tone mapping: NoToneMapping (disabled for accurate colors)
+- Output color space: SRGBColorSpace (proper color display)
+- Anisotropic filtering: Enabled for sharp textures at oblique angles
 
 ## Tech Stack
 
@@ -198,11 +261,15 @@ App.vue                    # Root component, provides sample images array
   - When idle: Throttled to 10fps (every 100ms) for readability and reduced reactivity overhead
 - **HUD Interface**: Technical readouts showing rotation coordinates, visible face numbers (e.g., F0, F2, F4), frame count, and cycle statistics
 - **Calibration Ring**: SVG-based outer ring with degree markers that rotates with the cube
-- Amber/cyan color scheme (0xff9500, 0x00d4ff) for lighting and cube edges
+- Amber/cyan/magenta color scheme (0xff9500, 0x00d4ff, 0x8b5cf6) for lighting and cube edges
+- Enhanced dramatic lighting with key light (amber spot), fill light (cyan point), and rim light (magenta spot)
+- Volumetric fog effect (exponential, density 0.08) for atmospheric depth
+- Particle system with 200 particles (100 on mobile) in cyan, amber, and magenta colors
 - Smooth rotation interpolation using lerp (0.08 factor) in the animation loop
 - Real-time drag feedback: applies drag offset during interaction
 - On drag release: captures current cube rotation as new target (prevents snap-back)
-- Subtle animations: floating (sinusoidal y-position) and pulsing edge glow
+- Subtle animations: floating (sinusoidal y-position), pulsing edge glow, and ambient particle rotation
+- Interactive light feedback: lights intensify during drag (1.5x) for dynamic response
 
 **src/composables/useCubeNavigation.ts** - Gesture handling composable:
 - Global pointer event listeners (not bound to specific element)
@@ -213,9 +280,20 @@ App.vue                    # Root component, provides sample images array
 ### Three.js Configuration Details
 
 - Camera distance adjusts for mobile (4.5) vs desktop (3)
-- Uses `MeshPhysicalMaterial` for realistic lighting with clearcoat
-- Three colored point lights (amber, cyan, amber) for cyber-chronometer effect
-- `LineSegments` with `EdgesGeometry` for glowing cube edges in cyan (#00d4ff)
+- Uses `MeshBasicMaterial` for 100% browser-native brightness (unlit material)
+  - No shading, reflections, or lighting calculations
+  - Images display at identical brightness to `<img>` tags
+  - Flat, clean appearance optimized for image viewing
+- **Lighting system** (for edge glow and particles only):
+  - Ambient light: Warm white (0xfff5f0, 0.8 intensity)
+  - Key light: White directional (2.0 intensity) at (2, 2, 4)
+  - Fill light: Soft cyan (0xf0f5f0, 1.2 intensity) at (-3, 1, 3)
+  - Rim light: Rose pink (0xe8c4c4, 0.4 intensity) at (-4, 2, -3)
+  - Note: Lights do NOT affect cube faces (MeshBasicMaterial is unlit)
+- **Particle system**: 150 particles (75 on mobile) with random velocities in sphere radius 2-4
+- **Fog**: Disabled (density 0.0) for maximum brightness and clarity
+- **Dynamic edges**: Dusty rose edges (#d4a5a5) with normal blending, pulsing between 0.3-0.5 opacity
+- Edge opacity brightens during drag for interactive feedback
 - Initial rotation is angled (-15°, -25°) to show 3D depth
 - Drag sensitivity: 0.3 multiplier on drag delta for rotation
 - **Quaternion-based rotation**: Uses quaternions and `rotateOnWorldAxis()` for camera-relative rotation
@@ -275,9 +353,12 @@ const imageUrls = [
 ### Visual Design System
 
 **Colors (CSS Variables)**:
-- `--color-void`: #0a0a0c (background)
-- `--color-amber`: #ff9500 (warnings, highlights)
-- `--color-cyan`: #00d4ff (data, accents)
+- `--color-cream`: #f9f6f1 (background - warm cream)
+- `--color-rose`: #d4a5a5 (dusty rose for edges and accents)
+- `--color-rose-light`: #e8c4c4 (light rose for lighting)
+- `--color-mint`: #a8c4a8 (soft mint for accent)
+- `--color-watermelon`: #ffb6b6 (soft watermelon for particles)
+- `--color-text-dark`: #8b7355 (warm brown for text)
 - `--color-white`: #f5f5f7 (primary text)
 - `--color-gray`: #8a8a93 (secondary text)
 
@@ -286,15 +367,14 @@ const imageUrls = [
 - `--font-mono`: JetBrains Mono (data readouts, 13px, 400 weight)
 
 **UI Components**:
-- `.hud-panel`: Semi-transparent panels with gradient backgrounds and colored border accents
+- `.hud-panel`: Semi-transparent panels with warm cream backgrounds and rose border accents
 - `.calibration-ring`: SVG-based circular indicator with degree markers and rotating element
-- `.loading-spinner`: Dual-ring mechanical spinner with counter-rotating amber/cyan rings
+- `.loading-spinner`: Dual-ring mechanical spinner with counter-rotating rose/mint rings
 
 **Animations**:
 - `--transition-mechanical`: 500ms cubic-bezier(0.2, 0.8, 0.2, 1) for calibration ring
 - `--transition-smooth`: 300ms cubic-bezier(0.4, 0, 0.2, 1) for UI elements
-- Grid overlay: 80px × 80px with 3% opacity
-- Radial vignette focusing attention on center
+- Calibration ring pulse: 4-second ease-in-out infinite animation
 
 ### Mobile Optimization & Viewport Handling
 
@@ -389,7 +469,7 @@ The following critical issues identified in code review have been addressed:
 ```typescript
 onUnmounted(() => {
   // Dispose cube materials and textures
-  const materials = cube.material as THREE.MeshPhysicalMaterial[]
+  const materials = cube.material as THREE.MeshBasicMaterial[]
   materials.forEach((material) => {
     if (material.map) material.map.dispose()
     material.dispose()

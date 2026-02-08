@@ -179,6 +179,23 @@ let cube: THREE.Mesh
 let edges: THREE.LineSegments
 let targetQuaternion: THREE.Quaternion
 let animationFrameId: number
+let particles: THREE.Points
+let keyLight: THREE.DirectionalLight
+let fillLight: THREE.DirectionalLight
+
+// Aesthetic enhancement constants - soft cocktail palette
+const PARTICLE_COUNT = 150 // Fewer, more subtle particles
+const PARTICLE_SIZE = 0.025 // Smaller, more delicate
+const PARTICLE_SPEED = 0.0003 // Slower, gentler movement
+const PARTICLE_COLORS = [0xe8c4c4, 0xa8c4a8, 0xffb6b6] // Rose pink, Mint, Soft watermelon
+const EDGE_PULSE_SPEED = 0.001 // Slower pulse
+const EDGE_BASE_OPACITY = 0.3 // More subtle
+const EDGE_DRAG_OPACITY = 0.5 // Less dramatic
+const LIGHT_INTENSITY_IDLE = 0.9
+const LIGHT_INTENSITY_DRAG = 1.1
+const LIGHT_LERP_SPEED = 0.15
+const FOG_DENSITY = 0.0 // No fog - maximum brightness
+const FOG_COLOR = 0xf9f6f1 // Match warm cream background
 
 // Rotation configuration constants
 const DRAG_SENSITIVITY = 0.3 // Multiplier for drag delta to rotation
@@ -206,6 +223,10 @@ let momentumX = 0 // X-axis momentum (radians per frame)
 let momentumY = 0 // Y-axis momentum (radians per frame)
 let lastDragDeltaX = 0 // Track previous frame to detect if actually moving
 let lastDragDeltaY = 0
+
+// Particle system data
+let particleVelocities: Float32Array
+let edgePulseTime = 0
 
 // Face visibility tracking
 const faceNormals = [
@@ -268,6 +289,56 @@ function calculateRotationForFace(faceIndex: number): THREE.Quaternion {
   return rotation
 }
 
+// Initialize particle system
+function initParticleSystem(isMobile: boolean) {
+  const particleCount = isMobile ? PARTICLE_COUNT / 2 : PARTICLE_COUNT
+  const particleSize = isMobile ? PARTICLE_SIZE * 0.7 : PARTICLE_SIZE
+
+  const particlesGeometry = new THREE.BufferGeometry()
+  const positions = new Float32Array(particleCount * 3)
+  const colors = new Float32Array(particleCount * 3)
+  particleVelocities = new Float32Array(particleCount * 3)
+
+  // Initialize particles in sphere around cube
+  for (let i = 0; i < particleCount; i++) {
+    // Random position in sphere radius 2-4
+    const theta = Math.random() * Math.PI * 2
+    const phi = Math.acos(2 * Math.random() - 1)
+    const radius = 2 + Math.random() * 2
+
+    positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
+    positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
+    positions[i * 3 + 2] = radius * Math.cos(phi)
+
+    // Random velocity
+    particleVelocities[i * 3] = (Math.random() - 0.5) * PARTICLE_SPEED
+    particleVelocities[i * 3 + 1] = (Math.random() - 0.5) * PARTICLE_SPEED
+    particleVelocities[i * 3 + 2] = (Math.random() - 0.5) * PARTICLE_SPEED
+
+    // Random color from palette
+    const colorIndex = Math.floor(Math.random() * PARTICLE_COLORS.length)
+    const color = new THREE.Color(PARTICLE_COLORS[colorIndex])
+    colors[i * 3] = color.r
+    colors[i * 3 + 1] = color.g
+    colors[i * 3 + 2] = color.b
+  }
+
+  particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  particlesGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+
+  const particlesMaterial = new THREE.PointsMaterial({
+    size: particleSize,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.4, // More subtle
+    blending: THREE.NormalBlending, // Less glow
+    sizeAttenuation: true,
+  })
+
+  particles = new THREE.Points(particlesGeometry, particlesMaterial)
+  scene.add(particles)
+}
+
 // Initialize showcase mode from props
 function initShowcaseMode() {
   if (!props.showcaseMode || !props.showcaseMode.enabled) {
@@ -306,8 +377,9 @@ function initShowcaseMode() {
 const initThreeJS = async () => {
   if (!canvas.value || !container.value) return
 
-  // Scene setup
+  // Scene setup with soft fog
   scene = new THREE.Scene()
+  scene.fog = new THREE.FogExp2(FOG_COLOR, FOG_DENSITY)
 
   // Camera setup - adjust distance based on screen width for mobile
   const aspect = container.value.clientWidth / container.value.clientHeight
@@ -315,7 +387,7 @@ const initThreeJS = async () => {
   camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000)
   camera.position.z = isMobile ? 4.5 : 3
 
-  // Renderer setup
+  // Renderer setup with transparent background
   renderer = new THREE.WebGLRenderer({
     canvas: canvas.value,
     antialias: true,
@@ -323,6 +395,10 @@ const initThreeJS = async () => {
   })
   renderer.setSize(container.value.clientWidth, container.value.clientHeight)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+
+  // CRITICAL: No tone mapping needed for MeshBasicMaterial - displays at native brightness
+  renderer.toneMapping = THREE.NoToneMapping
+  renderer.outputColorSpace = THREE.SRGBColorSpace
 
   // Load textures with cropping, error handling and progress tracking
   console.log(
@@ -354,16 +430,12 @@ const initThreeJS = async () => {
 
   console.log('🎉 All textures loaded successfully!')
 
-  // Create materials for each face - balanced brightness
+  // Create materials for each face - MeshBasicMaterial for 100% browser-native brightness
   const materials = textures.map((texture) => {
-    return new THREE.MeshPhysicalMaterial({
+    texture.colorSpace = THREE.SRGBColorSpace
+
+    return new THREE.MeshBasicMaterial({
       map: texture,
-      transparent: false,
-      opacity: 1,
-      metalness: 0.0,
-      roughness: 0.5,
-      clearcoat: 0.1,
-      clearcoatRoughness: 0.3,
       side: THREE.FrontSide,
     })
   })
@@ -373,31 +445,44 @@ const initThreeJS = async () => {
   cube = new THREE.Mesh(geometry, materials)
   scene.add(cube)
 
-  // Add holographic edges
+  // Add subtle soft edges
   const edgesGeometry = new THREE.EdgesGeometry(geometry)
   const edgesMaterial = new THREE.LineBasicMaterial({
-    color: 0x00d4ff, // Cyan
+    color: 0xd4a5a5, // Dusty rose
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.3,
+    blending: THREE.NormalBlending,
   })
   edges = new THREE.LineSegments(edgesGeometry, edgesMaterial)
   cube.add(edges)
 
-  // Add lighting - balanced for accurate image colors
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
+  // Soft studio lighting optimized for tone mapping
+  const ambientLight = new THREE.AmbientLight(0xfff5f0, 0.8)
   scene.add(ambientLight)
 
-  const pointLight1 = new THREE.PointLight(0xff9500, 0.5, 10) // Amber
-  pointLight1.position.set(2, 2, 2)
-  scene.add(pointLight1)
+  keyLight = new THREE.DirectionalLight(0xffffff, 2.0)
+  keyLight.position.set(2, 2, 4)
+  scene.add(keyLight)
 
-  const pointLight2 = new THREE.PointLight(0x00d4ff, 0.3, 10) // Cyan
-  pointLight2.position.set(-2, -2, 2)
-  scene.add(pointLight2)
+  fillLight = new THREE.DirectionalLight(0xf0f5f0, 1.2)
+  fillLight.position.set(-3, 1, 3)
+  scene.add(fillLight)
 
-  const pointLight3 = new THREE.PointLight(0xff9500, 0.3, 10) // Amber
-  pointLight3.position.set(0, 0, -2)
-  scene.add(pointLight3)
+  // Add rim light for depth
+  const rimLight = new THREE.DirectionalLight(0xe8c4c4, 0.4)
+  rimLight.position.set(-4, 2, -3)
+  scene.add(rimLight)
+
+  // Generate PMREM environment for realistic lighting
+  const pmremGenerator = new THREE.PMREMGenerator(renderer)
+  const envScene = new THREE.Scene()
+  envScene.background = new THREE.Color(0xf9f6f1)
+  const envTexture = pmremGenerator.fromScene(envScene).texture
+  scene.environment = envTexture
+  pmremGenerator.dispose()
+
+  // Initialize particle system
+  initParticleSystem(isMobile)
 
   // Set initial rotation to show 3D effect
   cube.rotation.x = THREE.MathUtils.degToRad(-15)
@@ -453,6 +538,9 @@ async function updateFaceTexture(faceIndex: number, imageIndex: number): Promise
       strategy: props.cropStrategy,
       targetSize: props.cropSize,
     })
+
+    // Set anisotropy for runtime-loaded textures
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
 
     // Update the material's map (cube.material is an array of 6 materials)
     const materials = cube.material as THREE.MeshPhysicalMaterial[]
@@ -593,11 +681,43 @@ const animate = () => {
     // Add subtle floating animation
     cube.position.y = Math.sin(Date.now() * 0.001) * 0.05
 
-    // Pulse the edge glow
+    // Dynamic edge glow with pulse
     if (edges) {
-      const pulseOpacity = 0.4 + Math.sin(Date.now() * 0.002) * 0.2
-      ;(edges.material as THREE.LineBasicMaterial).opacity = pulseOpacity
+      edgePulseTime += 1
+      const pulseAmount = Math.sin(edgePulseTime * EDGE_PULSE_SPEED) * 0.2
+      const targetOpacity = isDragging.value ? EDGE_DRAG_OPACITY : EDGE_BASE_OPACITY
+      ;(edges.material as THREE.LineBasicMaterial).opacity = targetOpacity + pulseAmount
     }
+
+    // Interactive light feedback
+    const targetIntensity = isDragging.value ? LIGHT_INTENSITY_DRAG : LIGHT_INTENSITY_IDLE
+    const currentIntensity = keyLight.intensity
+    keyLight.intensity += (targetIntensity - currentIntensity) * LIGHT_LERP_SPEED
+  }
+
+  // Update particle system
+  if (particles) {
+    const positions = particles.geometry.attributes.position.array as Float32Array
+    for (let i = 0; i < positions.length / 3; i++) {
+      positions[i * 3] += particleVelocities[i * 3]
+      positions[i * 3 + 1] += particleVelocities[i * 3 + 1]
+      positions[i * 3 + 2] += particleVelocities[i * 3 + 2]
+
+      // Wrap around sphere boundary
+      const x = positions[i * 3]
+      const y = positions[i * 3 + 1]
+      const z = positions[i * 3 + 2]
+      const dist = Math.sqrt(x * x + y * y + z * z)
+
+      if (dist > 4) {
+        // Reset to center
+        positions[i * 3] *= 0.5
+        positions[i * 3 + 1] *= 0.5
+        positions[i * 3 + 2] *= 0.5
+      }
+    }
+    particles.geometry.attributes.position.needsUpdate = true
+    particles.rotation.y += 0.0002 // Slow ambient rotation
   }
 
   // Check for newly visible faces and update their images
@@ -805,9 +925,20 @@ onUnmounted(() => {
     ;(edges.material as THREE.Material).dispose()
   }
 
+  // Dispose of particle system
+  if (particles) {
+    particles.geometry.dispose()
+    ;(particles.material as THREE.Material).dispose()
+  }
+
   // Dispose of renderer
   if (renderer) {
     renderer.dispose()
+  }
+
+  // Dispose of environment map
+  if (scene && scene.environment) {
+    scene.environment.dispose()
   }
 
   // Note: rotationHelper is a module-level const Object3D not in scene graph

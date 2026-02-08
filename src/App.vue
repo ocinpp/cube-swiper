@@ -17,18 +17,19 @@
       @showcase-completed="onShowcaseCompleted"
     />
 
-    <!-- Showcase control button -->
-    <div class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+    <!-- Controls container -->
+    <div class="fixed left-1/2 -translate-x-1/2 z-50 md:bottom-8 bottom-32 flex flex-col items-center gap-3">
+      <!-- Showcase control button -->
       <button
         @click="toggleShowcase"
-        class="px-6 py-3 rounded-lg font-mono text-sm tracking-wider transition-all duration-300"
+        class="px-5 py-2 rounded-md font-mono text-xs tracking-wider transition-all duration-300 border"
         :class="
           isShowcaseRunning
-            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/50 hover:bg-amber-500/30'
-            : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 hover:bg-cyan-500/30'
+            ? 'bg-[#e8c4c4]/40 text-[#d4a5a5] border-[#d4a5a5]/50 hover:bg-[#e8c4c4]/50'
+            : 'bg-[#a8c4a8]/40 text-[#8fa88f] border-[#8fa88f]/50 hover:bg-[#a8c4a8]/50'
         "
       >
-        {{ isShowcaseRunning ? '⏹ Stop Showcase' : '▶ Start Showcase' }}
+        {{ isShowcaseRunning ? '⏹ Stop' : '▶ Start' }}
       </button>
     </div>
 
