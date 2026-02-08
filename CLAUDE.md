@@ -33,9 +33,30 @@ All critical issues and major features have been implemented. The application is
 - ✅ Comprehensive drag-to-axis mapping documentation
 - ✅ All code review feedback addressed through two rounds of review
 
+**Completed (Phase 2.75 - Showcase Mode):**
+- ✅ Custom face sequence showcase mode
+- ✅ Configurable timing, looping, and auto-start
+- ✅ Programmatic API (start/stop/toggle/pause/resume)
+- ✅ Smooth quaternion-based rotation to align faces with camera
+- ✅ Integration with existing image cycling system
+- ✅ Comprehensive documentation
+- ✅ Event system for reactive state tracking
+- ✅ Pause/resume functionality
+- ✅ Delta time precision (no timing drift)
+- ✅ Production-ready console logging
+- ✅ JSDoc documentation for public API
+
+**Code Review Fixes Applied:**
+- ✅ Race condition: Guard checks in `showcaseTargetFace` computed property
+- ✅ Timing precision: Delta time system using `performance.now()`
+- ✅ Events: 5 events emitted for state changes
+- ✅ Pause/Resume: Full control over showcase playback
+- ✅ Production logging: `DEBUG` environment check
+- ✅ JSDoc: Complete API documentation
+
 **Remaining Enhancements (Phase 3):**
 - Accessibility improvements (ARIA, keyboard nav)
-- Unit tests for quaternion rotation logic (requires test infrastructure)
+- Unit tests for quaternion rotation logic and showcase mode (requires test infrastructure)
 
 ### Aesthetic Vision
 
@@ -725,6 +746,293 @@ The cube automatically changes the image on a face when it transitions from off-
 - **Cooldown**: Rapidly rotating same face in/out won't trigger multiple changes
 - **Multiple faces**: Can change multiple faces simultaneously when they become visible
 - **Async loading**: Texture loading is non-blocking with Promise-based approach
+
+### Showcase Mode
+
+Showcase mode provides automated face presentation with custom sequences, allowing the cube to smoothly rotate through predefined faces.
+
+#### Props Interface
+
+```typescript
+interface ShowcaseMode {
+  enabled: boolean              // Enable showcase mode
+  sequence: number[]            // Face sequence to display [0,2,4,...]
+  faceDuration?: number         // Duration per face (ms, default: 3000)
+  autoStart?: boolean           // Start on mount (default: false)
+  loop?: boolean                // Loop sequence (default: true)
+  rotationSpeed?: number        // Slerp factor (default: 0.02, lower = smoother)
+}
+```
+
+#### Implementation Details
+
+**Face Rotation Calculator** (`src/components/MagicCube.vue:193-206`):
+```typescript
+function calculateRotationForFace(faceIndex: number): THREE.Quaternion {
+  if (!cube) return new THREE.Quaternion()
+
+  // Get target face's normal
+  const targetNormal = faceNormals[faceIndex].clone()
+
+  // Camera direction: camera at (0, 0, z) looking at origin
+  // Direction from camera to scene is (0, 0, -1)
+  const cameraDirection = new THREE.Vector3(0, 0, -1)
+
+  // Calculate quaternion to align face normal with camera direction
+  const rotation = new THREE.Quaternion()
+  rotation.setFromUnitVectors(targetNormal, cameraDirection)
+
+  return rotation
+}
+```
+
+**Animation Loop Integration** (`src/components/MagicCube.vue:423-445`):
+- Runs after drag/momentum logic (showcase takes precedence)
+- Checks time elapsed since last face change
+- Advances to next face in sequence when duration expires
+- Handles sequence looping (repeats if `loop: true`, stops if `false`)
+- Uses slerp interpolation for smooth rotation to target face
+- Updates `targetQuaternion` to prevent snap-back
+
+**Public API** (`src/components/MagicCube.vue:502-526`):
+- `startShowcase()`: Manually start showcase mode (emits `showcaseStarted`)
+- `stopShowcase()`: Manually stop showcase mode (emits `showcaseStopped`)
+- `toggleShowcase()`: Toggle showcase on/off
+- `pauseShowcase()`: Pause showcase without stopping (emits `showcasePaused`)
+- `resumeShowcase()`: Resume from paused state (emits `showcaseResumed`)
+- `isShowcaseActive()`: Returns current showcase active state
+- `isShowcasePaused()`: Returns current showcase paused state
+
+**Events:**
+- `@showcase-started` - Emitted when showcase mode starts
+- `@showcase-stopped` - Emitted when showcase mode stops
+- `@showcase-paused` - Emitted when showcase is paused
+- `@showcase-resumed` - Emitted when showcase resumes from paused state
+- `@showcase-completed` - Emitted when non-looping sequence completes
+
+#### State Management
+
+```typescript
+const isShowcaseActive = ref(false)
+const isShowcasePaused = ref(false) // Pause state (doesn't advance faces)
+const showcaseCurrentIndex = ref(0)  // Index in sequence array
+const showcaseAccumulatedTime = ref(0) // Accumulated time using delta time
+let lastShowcaseFrameTime = 0 // Last frame time for delta calculation
+const showcaseSequence = ref<number[]>([])
+const showcaseFaceDuration = ref(3000) // Duration per face (ms)
+const showcaseLoop = ref(true) // Loop sequence
+const showcaseRotationSpeed = ref(0.02) // Slerp factor for showcase
+```
+
+**Timing System:**
+- Uses delta time from animation loop (`performance.now()`) for precise timing
+- Accumulates time only when showcase is active and not paused
+- Avoids timing drift over long sessions
+- Resets frame time when showcase stops or pauses to prevent large delta jumps
+
+#### Configuration Constants
+
+- `faceDuration`: 3000ms (3 seconds) default per face
+  - Can be set to any value in milliseconds
+  - `1000` = 1 second, `2000` = 2 seconds, `5000` = 5 seconds
+  - Controls how long cube pauses on each face before rotating to next
+- `rotationSpeed`: 0.02 default (lower = smoother, higher = faster)
+- `loop`: true default (repeat sequence indefinitely)
+- `autoStart`: false default (manual trigger required)
+
+**Sequence Length:**
+- **No hard limit** on sequence length
+- Can use 1-6 unique faces (cube has 6 faces: 0-5)
+- Can repeat faces to create longer sequences: `[0, 2, 4, 0, 2, 4]`
+- Examples:
+  - `[0, 2, 4]` - 3 faces, repeats every `3 × faceDuration` ms
+  - `[0, 1, 2, 3, 4, 5]` - All 6 unique faces, repeats every `6 × faceDuration` ms
+  - `[0, 2, 4, 0, 2, 4, 0, 2, 4]` - 9 faces with repetitions, creates longer cycle
+- Total cycle time = `sequence.length × faceDuration` milliseconds
+
+#### Usage Example
+
+```vue
+<template>
+  <MagicCube
+    ref="cubeRef"
+    :images="images"
+    :showcase-mode="{
+      enabled: true,
+      sequence: [0, 2, 4, 5],  // Show right, top, front, back
+      faceDuration: 3000,        // 3 seconds per face
+      autoStart: false,          // Manual trigger
+      loop: true,                // Repeat sequence
+      rotationSpeed: 0.02        // Smooth rotation
+    }"
+    @showcase-started="isShowcaseRunning = true"
+    @showcase-stopped="isShowcaseRunning = false"
+    @showcase-paused="isShowcasePaused = true"
+    @showcase-resumed="isShowcasePaused = false"
+    @showcase-completed="isShowcaseRunning = false"
+  />
+
+  <button @click="toggleShowcase">
+    {{ isShowcaseRunning ? 'Stop' : 'Start' }} Showcase
+  </button>
+
+  <button v-if="isShowcaseRunning" @click="togglePause">
+    {{ isShowcasePaused ? 'Resume' : 'Pause' }}
+  </button>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import MagicCube from './components/MagicCube.vue'
+
+const cubeRef = ref<InstanceType<typeof MagicCube>>()
+const isShowcaseRunning = ref(false)
+const isShowcasePaused = ref(false)
+
+function toggleShowcase() {
+  if (!cubeRef.value) return
+  cubeRef.value.toggleShowcase()
+}
+
+function togglePause() {
+  if (!cubeRef.value) return
+  if (isShowcasePaused.value) {
+    cubeRef.value.resumeShowcase()
+  } else {
+    cubeRef.value.pauseShowcase()
+  }
+}
+</script>
+```
+
+**Timing Examples:**
+
+```vue
+<!-- Fast presentation - 1 second per face -->
+:showcase-mode="{
+  enabled: true,
+  sequence: [0, 2, 4],
+  faceDuration: 1000,    // 1 second × 3 faces = 3 second cycle
+  loop: true
+}"
+
+<!-- Standard presentation - 2 seconds per face -->
+:showcase-mode="{
+  enabled: true,
+  sequence: [0, 2, 4, 1, 3, 5],
+  faceDuration: 2000,    // 2 seconds × 6 faces = 12 second cycle
+  loop: true
+}"
+
+<!-- Slow viewing - 5 seconds per face -->
+:showcase-mode="{
+  enabled: true,
+  sequence: [0, 2, 4],
+  faceDuration: 5000,    // 5 seconds × 3 faces = 15 second cycle
+  loop: false            // Stops after one cycle
+}"
+
+<!-- Extended sequence with repetitions -->
+:showcase-mode="{
+  enabled: true,
+  sequence: [0, 2, 4, 0, 2, 4, 0, 2, 4],  // 9 faces
+  faceDuration: 2000,                        // 2 seconds × 9 = 18 second cycle
+  loop: true
+}"
+```
+
+#### Integration with Existing Systems
+
+- **Image cycling**: Unaffected, continues to use 3s cooldown
+- **Face visibility**: Existing `getVisibleFaces()` works during showcase
+- **Momentum system**: Bypassed during showcase (showcase takes precedence)
+- **HUD updates**: Continue normally, shows current rotation with "SHOWCASE" status indicator
+  - Shows "SHOWCASE (PAUSED)" when showcase is active but paused
+  - Shows "SHOWCASE" when showcase is actively running
+- **User interaction**: Showcase continues uninterrupted through drag events (continuous mode)
+
+**Pause Functionality:**
+- Pause stops time accumulation but keeps showcase active
+- Cube remains on current face while paused
+- Resume continues from where it left off (doesn't reset to beginning)
+- Useful for examining a specific face before sequence continues
+
+#### Edge Cases Handled
+
+1. **Empty sequence**: If `sequence: []`, showcase mode logs warning and doesn't activate
+2. **Invalid face numbers**: If sequence contains numbers > 5 or < 0, logs error and doesn't activate
+3. **Single face**: If `sequence: [2]`, cube rotates to face 2 and stops (if not looping)
+4. **Sequence length**: No hard limit - can be any length from 1 to hundreds of items
+   - Short sequences: `[0, 2]` - 2 faces
+   - All unique faces: `[0, 1, 2, 3, 4, 5]` - 6 faces (maximum unique)
+   - With repetitions: `[0, 2, 4, 0, 2, 4, 0, 2, 4]` - 9+ faces, any length
+5. **Camera distance**: Calculation works for both mobile (4.5) and desktop (3) distances
+6. **Showcase not enabled**: Public methods log warnings if `showcaseMode.enabled` is false
+7. **Pause/Resume**: Can only pause when active, can only resume when paused
+8. **Component unmount**: No special cleanup needed (uses Vue refs, no timers)
+
+**Timing Precision:**
+- Uses `performance.now()` with delta time accumulation instead of `Date.now()`
+- Eliminates timing drift over long sessions
+- Properly handles pause/resume without accumulating time while paused
+- Resets frame time on stop/pause to prevent large delta jumps on restart
+
+### Code Review Improvements
+
+Following the initial implementation, a comprehensive code review identified and fixed several important and minor issues:
+
+#### Important Fixes
+
+**1. Race Condition Prevention** (`src/components/MagicCube.vue:207-214`)
+- Added guard checks in `showcaseTargetFace` computed property
+- Prevents accessing empty sequences or inactive showcase state
+- Returns explicit fallback (face 0) with clear documentation
+- Eliminates potential null access during non-looping sequence completion
+
+**2. Timing Precision Enhancement** (`src/components/MagicCube.vue:513-545`)
+- Replaced `Date.now()` timestamps with `performance.now()` delta time
+- Prevents timing drift over long showcase sessions (hours)
+- Accumulates time only when showcase is active and not paused
+- Resets `lastShowcaseFrameTime` on stop/pause to prevent large delta jumps
+- Ensures consistent face duration regardless of frame rate variations
+
+#### Minor Enhancements
+
+**3. Production Logging** (`src/components/MagicCube.vue:186`)
+- Added `DEBUG` environment check: `const DEBUG = import.meta.env.DEV`
+- All console logs now only appear in development mode
+- Production builds run silently without console clutter
+- Includes showcase start/stop/pause/resume/completion messages
+
+**4. Event System** (`src/components/MagicCube.vue:130-136, 818-828, 838-843`)
+- Five events emitted for reactive state tracking:
+  - `showcaseStarted` - When showcase begins
+  - `showcaseStopped` - When showcase stops
+  - `showcasePaused` - When showcase is paused
+  - `showcaseResumed` - When showcase resumes from pause
+  - `showcaseCompleted` - When non-looping sequence finishes
+- Parent components can react to state changes without polling
+- Example in `App.vue` shows event-based button state management
+
+**5. Pause/Resume Functionality** (`src/components/MagicCube.vue:648-668`)
+- `pauseShowcase()` - Stops time accumulation, keeps current face visible
+- `resumeShowcase()` - Continues from current position (no reset)
+- `isShowcasePaused` state tracks pause status
+- HUD displays "SHOWCASE (PAUSED)" when paused
+- Ideal for examining specific faces during showcase
+
+**6. JSDoc Documentation** (`src/components/MagicCube.vue:619-668`)
+- Complete JSDoc comments for all public API methods
+- Documents parameters, return values, and emitted events
+- Improves IDE autocomplete experience
+- `@throws` tags document error conditions
+- `@emits` tags document side effects
+
+**7. HUD Status Enhancement** (`src/components/MagicCube.vue:62-73`)
+- System status now shows "SHOWCASE" when showcase is running
+- Shows "SHOWCASE (PAUSED)" when showcase is paused
+- Uses amber color (`hud-value--warn`) for showcase mode
+- Clear visual feedback for all showcase states
 
 ## TypeScript Configuration
 
