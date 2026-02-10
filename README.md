@@ -36,6 +36,14 @@ An interactive 3D image viewer with a precision timekeeping aesthetic. Drag to r
 - **Responsive Camera**: Automatic camera distance adjustment (4.5 for mobile, 3 for desktop)
 - **Optimized Touch Targets**: Large drag area covering entire screen
 - **Calibration Ring**: Reduced opacity on touch devices for better visibility
+- **UI Adjustments**: Frame Info panel hidden on mobile, showcase button positioned at bottom edge
+
+## Performance
+
+- **Pre-Loaded Textures**: All images loaded during initialization for instant swapping
+- **Efficient Showcase Mode**: Cycle transitions use cached textures (no blocking operations)
+- **Memory Management**: Three.js resources properly disposed on unmount
+- **Canvas Cropping**: Client-side image processing with configurable strategies
 
 ## Getting Started
 
@@ -396,6 +404,17 @@ The application has completed critical fixes and feature enhancements, making it
   - Edge case coverage and integration tests
   - All tests passing (2ms runtime)
   - Test scripts: `npm run test` (watch), `npm run test:run` (single run), `npm run test:ui` (UI mode)
+
+### Completed (Phase 2.87 - Performance & Mobile)
+- ✅ **Pre-Loaded Textures**: All images pre-loaded during initialization
+  - Stores all textures in `allPreloadedTextures[]` array
+  - Showcase mode uses instant texture swapping (no async loading)
+  - Eliminates mid-rotation sluggishness during cycle transitions
+  - Drag-to-rotate mode unaffected (still uses async loading)
+- ✅ **Mobile UI Adjustments**:
+  - Frame Info panel hidden on mobile (responsive: hidden md:block)
+  - Showcase button moved to bottom-16 on mobile (was bottom-32)
+  - Prevents UI elements from overlapping with 3D cube
 
 ### Completed (Phase 2.85 - Display & Distribution Fixes)
 - ✅ **Material Reordering Fix**: Fixed Three.js BoxGeometry material indexing

@@ -243,6 +243,7 @@ let faceChangeTimestamps = [0, 0, 0, 0, 0, 0]
 let showcaseImageOffset = 0 // Offset into images array for current showcase cycle
 let pendingSkippedFaceUpdate = null as number | null // Track pending update for skipped face (F4)
 let pendingUpdateTriggered = false // Prevent duplicate pending updates during rapid rotation
+let allPreloadedTextures: THREE.Texture[] = [] // Store all pre-loaded textures for instant swapping
 const COOLDOWN_MS = 3000 // 3 seconds
 
 // Translation table: accounts for material reordering when loading images
@@ -303,30 +304,21 @@ function assignImagesToFacesForShowcase(skipFace?: number) {
 
     faceImageIndices[i] = logicalImageIndex
 
-    // Update the texture immediately for this face
-    if (cube) {
+    // Update the texture immediately for this face using pre-loaded textures
+    if (cube && allPreloadedTextures.length > 0) {
       const materials = cube.material as THREE.MeshBasicMaterial[]
       const material = materials[i]
 
-      // Load the new image
-      loadCroppedTexture(props.images[imageIndex], {
-        strategy: props.cropStrategy,
-        targetSize: props.cropSize,
-      })
-        .then((texture) => {
-          texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+      // Use pre-loaded texture for instant swapping (no async loading)
+      const texture = allPreloadedTextures[imageIndex]
 
-          // Dispose old texture
-          if (material.map) {
-            material.map.dispose()
-          }
+      // Dispose old texture to prevent memory leaks
+      if (material.map && material.map !== texture) {
+        material.map.dispose()
+      }
 
-          material.map = texture
-          material.needsUpdate = true
-        })
-        .catch((error) => {
-          console.error(`Failed to load texture for face ${i} (image ${imageIndex}):`, error)
-        })
+      material.map = texture
+      material.needsUpdate = true
     }
   }
 
@@ -512,6 +504,10 @@ const initThreeJS = async () => {
   })
 
   console.log('🎉 All textures loaded successfully!')
+
+  // Store all textures for instant swapping during showcase cycle transitions
+  allPreloadedTextures = textures
+  if (DEBUG) console.log(`💾 Stored ${allPreloadedTextures.length} pre-loaded textures for showcase mode`)
 
   // Create materials for each face - MeshBasicMaterial for 100% browser-native brightness
   const materials = textures.map((texture) => {
@@ -881,36 +877,27 @@ const animate = () => {
           console.log(`   Updating skipped face F${skippedFace} to img${imageIndex}`)
         }
 
-        // Load and update the texture for the skipped face
-        if (cube) {
+        // Load and update the texture for the skipped face using pre-loaded textures
+        if (cube && allPreloadedTextures.length > 0) {
           const materials = cube.material as THREE.MeshBasicMaterial[]
           const material = materials[skippedFace]
 
-          loadCroppedTexture(props.images[imageIndex], {
-            strategy: props.cropStrategy,
-            targetSize: props.cropSize,
-          })
-            .then((texture) => {
-              texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+          // Use pre-loaded texture for instant swapping
+          const texture = allPreloadedTextures[imageIndex]
 
-              if (material.map) {
-                material.map.dispose()
-              }
+          if (material.map && material.map !== texture) {
+            material.map.dispose()
+          }
 
-              material.map = texture
-              material.needsUpdate = true
+          material.map = texture
+          material.needsUpdate = true
 
-              // Update logical image index
-              faceImageIndices[skippedFace] =
-                (showcaseImageOffset + skippedFace) % props.images.length
+          // Update logical image index
+          faceImageIndices[skippedFace] = (showcaseImageOffset + skippedFace) % props.images.length
 
-              if (DEBUG) {
-                console.log(`✅ LOADED: F${skippedFace} texture updated to img${imageIndex}`)
-              }
-            })
-            .catch((error) => {
-              console.error(`Failed to load texture for face ${skippedFace} (image ${imageIndex}):`, error)
-            })
+          if (DEBUG) {
+            console.log(`✅ LOADED: F${skippedFace} texture updated to img${imageIndex} (instant)`)
+          }
         }
 
         pendingSkippedFaceUpdate = null // Clear pending update
