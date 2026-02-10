@@ -55,7 +55,7 @@
 
     <!-- HUD: Top Left - Title -->
     <div class="hud-panel hud-panel--top-left">
-      <h1 class="hud-title">CHRONO CUBE</h1>
+      <h1 class="hud-title">Cocktail Explorer</h1>
       <div class="hud-subtitle">Image Viewer v1.0</div>
       <div class="hud-divider"></div>
       <div class="hud-label">System Status</div>
@@ -240,6 +240,9 @@ const faceNormals = [
 let previouslyVisibleFaces = new Set<number>()
 let faceImageIndices = [0, 1, 2, 3, 4, 5] // Initially mapped 1:1
 let faceChangeTimestamps = [0, 0, 0, 0, 0, 0]
+let showcaseImageOffset = 0 // Offset into images array for current showcase cycle
+let lastFaceShownInShowcase = -1 // Track which face was shown last
+let pendingSkippedFaceUpdate = null as number | null // Track pending update for skipped face (F4)
 const COOLDOWN_MS = 3000 // 3 seconds
 
 // Debug mode check for console logging
@@ -269,6 +272,72 @@ const showcaseTargetFace = computed(() => {
 function formatRotation(degrees: number): string {
   const normalized = ((degrees % 360) + 360) % 360
   return normalized.toFixed(1)
+}
+
+// Showcase mode: Assign images to faces for current cycle
+function assignImagesToFacesForShowcase(skipFace?: number) {
+  const imageCount = props.images.length
+
+  // Translation table: accounts for material reordering when loading images
+  // Material reordering swaps adjacent pairs: [0↔1, 2↔3, 4↔5]
+  // This means face i needs material at translateIndex(i) to show logical image i
+  const translateIndex = (i: number) => (i % 2 === 0 ? i + 1 : i - 1)
+
+  // Assign 6 images to 6 faces based on current offset
+  for (let i = 0; i < 6; i++) {
+    // Skip the specified face (F4) - will update later when F0 aligns
+    if (skipFace === i) continue
+
+    // Calculate the logical image index for this face in the current cycle
+    // This is what we track in faceImageIndices and what the face should logically show
+    const logicalImageIndex = (showcaseImageOffset + i) % imageCount
+
+    // Calculate the actual image index to load, accounting for material reordering
+    // Due to material swap, we need to load from a different index
+    const imageIndex = (showcaseImageOffset + translateIndex(i)) % imageCount
+
+    // Skip if this face already has the correct logical image
+    if (faceImageIndices[i] === logicalImageIndex) {
+      if (DEBUG) console.log(`Face ${i} already has image ${logicalImageIndex}, skipping`)
+      continue
+    }
+
+    faceImageIndices[i] = logicalImageIndex
+
+    // Update the texture immediately for this face
+    if (cube) {
+      const materials = cube.material as THREE.MeshBasicMaterial[]
+      const material = materials[i]
+
+      // Load the new image
+      loadCroppedTexture(props.images[imageIndex], {
+        strategy: props.cropStrategy,
+        targetSize: props.cropSize,
+      })
+        .then((texture) => {
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+
+          // Dispose old texture
+          if (material.map) {
+            material.map.dispose()
+          }
+
+          material.map = texture
+          material.needsUpdate = true
+        })
+        .catch((error) => {
+          console.error(`Failed to load texture for face ${i} (image ${imageIndex}):`, error)
+        })
+    }
+  }
+
+  if (DEBUG) {
+    console.log(
+      `📷 Assigned images to faces (skipped F${skipFace || 'none'}):`,
+      faceImageIndices.map((idx, face) => `F${face}=img${idx}`).join(', ')
+    )
+    console.log(`   showcaseImageOffset=${showcaseImageOffset}, total images=${imageCount}`)
+  }
 }
 
 // Showcase mode: Calculate rotation to align face with camera
@@ -366,11 +435,27 @@ function initShowcaseMode() {
 
   // Auto-start if configured
   if (props.showcaseMode.autoStart) {
+    // Reset showcase state
+    showcaseImageOffset = 0 // Reset image offset
+    lastFaceShownInShowcase = -1 // Reset tracking
+    pendingSkippedFaceUpdate = null // Reset pending update
+
+    // Reset previously visible faces to prevent face cycling on first showcase rotation
+    // Note: camera and cube are initialized by the time this hook runs
+    if (camera && cube) {
+      previouslyVisibleFaces = getVisibleFaces()
+    }
+
+    // Assign first batch of images
+    // This will skip loading if the correct images are already displayed
+    assignImagesToFacesForShowcase()
+
     isShowcaseActive.value = true
     showcaseCurrentIndex.value = 0
     showcaseAccumulatedTime.value = 0
     lastShowcaseFrameTime = performance.now()
-    if (DEBUG) console.log(`🎬 Showcase mode started: sequence [${showcaseSequence.value.join(', ')}]`)
+    if (DEBUG)
+      console.log(`🎬 Showcase mode started: sequence [${showcaseSequence.value.join(', ')}]`)
   }
 }
 
@@ -385,7 +470,7 @@ const initThreeJS = async () => {
   const aspect = container.value.clientWidth / container.value.clientHeight
   const isMobile = container.value.clientWidth < 768
   camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000)
-  camera.position.z = isMobile ? 4.5 : 3
+  camera.position.z = isMobile ? 3.2 : 3 // Mobile: closer for larger cube appearance
 
   // Renderer setup with transparent background
   renderer = new THREE.WebGLRenderer({
@@ -441,10 +526,27 @@ const initThreeJS = async () => {
     })
   })
 
-  // Create cube geometry
+  // Reorder materials to fix display order
+  // Three.js BoxGeometry assigns materials to faces in order: right(0), left(1), top(2), bottom(3), front(4), back(5)
+  // To show images [1,2,3,4,5,6] on faces [0,1,2,3,4,5], we need to rearrange:
+  const reorderedMaterials = [
+    materials[1], // Face 0 (right): image 2
+    materials[0], // Face 1 (left): image 1
+    materials[3], // Face 2 (top): image 4
+    materials[2], // Face 3 (bottom): image 3
+    materials[5], // Face 4 (front): image 6
+    materials[4], // Face 5 (back): image 5
+  ]
+
+  // Create cube geometry with reordered materials
   const geometry = new THREE.BoxGeometry(2, 2, 2)
-  cube = new THREE.Mesh(geometry, materials)
+  cube = new THREE.Mesh(geometry, reorderedMaterials)
   scene.add(cube)
+
+  // Initialize faceImageIndices to track what each face SHOULD show (not actual after reordering)
+  // This ensures even distribution when faces cycle outside showcase mode
+  // The material reordering is handled separately in assignImagesToFacesForShowcase
+  faceImageIndices = [0, 1, 2, 3, 4, 5]
 
   // Add subtle soft edges
   const edgesGeometry = new THREE.EdgesGeometry(geometry)
@@ -651,8 +753,20 @@ const animate = () => {
           showcaseAccumulatedTime.value = 0
 
           // Move to next face in sequence
+          const wasLastInSequence = showcaseCurrentIndex.value === showcaseSequence.value.length - 1
           showcaseCurrentIndex.value =
             (showcaseCurrentIndex.value + 1) % showcaseSequence.value.length
+
+          // When we're about to show the last face, pre-load next cycle's images
+          // Skip F4 (second-to-last) and update it later when F0 aligns
+          if (wasLastInSequence && showcaseLoop.value) {
+            const lastFaceInSequence = showcaseSequence.value[showcaseSequence.value.length - 1]
+            const faceToSkip = Math.max(0, lastFaceInSequence - 1) // Skip F4
+            showcaseImageOffset = (showcaseImageOffset + 6) % props.images.length
+            if (DEBUG) console.log(`🔄 Pre-loading next cycle, skipping F${faceToSkip}`)
+            assignImagesToFacesForShowcase(faceToSkip)
+            pendingSkippedFaceUpdate = faceToSkip // Set pending update for skipped face
+          }
 
           // End of sequence if not looping
           if (showcaseCurrentIndex.value === 0 && !showcaseLoop.value) {
@@ -668,13 +782,17 @@ const animate = () => {
       }
 
       // Get target rotation for current face
-      const targetRotation = calculateRotationForFace(showcaseTargetFace.value)
+      const currentFace = showcaseTargetFace.value
+      const targetRotation = calculateRotationForFace(currentFace)
 
-      // Smooth rotation to target face
+      // Smooth rotation to target face FIRST
       cube.quaternion.slerp(targetRotation, showcaseRotationSpeed.value)
 
       // Update target quaternion so we don't snap back
       targetQuaternion.copy(cube.quaternion)
+
+      // Track which face we're showing
+      lastFaceShownInShowcase = currentFace
     } else {
       // Reset frame time when not active to avoid large delta on restart
       lastShowcaseFrameTime = 0
@@ -727,6 +845,68 @@ const animate = () => {
     const nowVisibleFaces = getVisibleFaces()
     const now = Date.now()
 
+    // Check if we have a pending update for the skipped face (F4)
+    // Update when the FIRST face of the new cycle is perfectly aligned with camera
+    if (pendingSkippedFaceUpdate !== null) {
+      const firstFaceInSequence = showcaseSequence.value[0]
+
+      // Check if F0 is aligned with camera by checking its dot product
+      const face0Normal = faceNormals[firstFaceInSequence].clone()
+      face0Normal.applyQuaternion(cube.quaternion)
+      face0Normal.normalize()
+
+      const cameraDirection = new THREE.Vector3(0, 0, -1)
+      const alignment = face0Normal.dot(cameraDirection)
+
+      // If F0 is perfectly aligned (1.0), then update the skipped face (F4)
+      if (alignment >= 0.999) {
+        const skippedFace = pendingSkippedFaceUpdate
+        // Calculate the image index for the skipped face
+        const translateIndex = (i: number) => (i % 2 === 0 ? i + 1 : i - 1)
+        const imageIndex = (showcaseImageOffset + translateIndex(skippedFace)) % props.images.length
+
+        if (DEBUG) {
+          console.log(
+            `🎯 TRIGGER: F${firstFaceInSequence} alignment = ${alignment.toFixed(6)} >= 0.999`
+          )
+          console.log(`   Updating skipped face F${skippedFace} to img${imageIndex}`)
+        }
+
+        // Load and update the texture for the skipped face
+        if (cube) {
+          const materials = cube.material as THREE.MeshBasicMaterial[]
+          const material = materials[skippedFace]
+
+          loadCroppedTexture(props.images[imageIndex], {
+            strategy: props.cropStrategy,
+            targetSize: props.cropSize,
+          })
+            .then((texture) => {
+              texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+
+              if (material.map) {
+                material.map.dispose()
+              }
+
+              material.map = texture
+              material.needsUpdate = true
+
+              // Update logical image index
+              faceImageIndices[skippedFace] = (showcaseImageOffset + skippedFace) % props.images.length
+
+              if (DEBUG) {
+                console.log(`✅ LOADED: F${skippedFace} texture updated to img${imageIndex}`)
+              }
+            })
+            .catch((error) => {
+              console.error(`Failed to load texture for face ${skippedFace} (image ${imageIndex}):`, error)
+            })
+        }
+
+        pendingSkippedFaceUpdate = null // Clear pending update
+      }
+    }
+
     // Hybrid HUD update strategy
     if (isDragging.value) {
       // During drag: Real-time updates for immediate feedback
@@ -747,18 +927,22 @@ const animate = () => {
       }
     }
 
+    let showcaseUpdatedThisFrame = false // Only update one face per frame during showcase
+
     for (const faceIndex of nowVisibleFaces) {
       // Skip if was already visible
       if (previouslyVisibleFaces.has(faceIndex)) continue
 
-      // Check cooldown
-      if (now - faceChangeTimestamps[faceIndex] < COOLDOWN_MS) continue
+      // Check cooldown (skip cooldown during showcase mode - images are pre-assigned)
+      const isInShowcase = isShowcaseActive.value && !isShowcasePaused.value
+      if (!isInShowcase && now - faceChangeTimestamps[faceIndex] < COOLDOWN_MS) continue
 
-      // Get next image index (cycle through all images)
-      faceImageIndices[faceIndex] = (faceImageIndices[faceIndex] + 1) % props.images.length
-
-      // Update texture
-      updateFaceTexture(faceIndex, faceImageIndices[faceIndex])
+      // During showcase mode, don't increment - images are pre-assigned per cycle
+      // During normal mode, increment to next image
+      if (!isInShowcase) {
+        faceImageIndices[faceIndex] = (faceImageIndices[faceIndex] + 1) % props.images.length
+        updateFaceTexture(faceIndex, faceImageIndices[faceIndex])
+      }
 
       // Update timestamp
       faceChangeTimestamps[faceIndex] = now
@@ -786,10 +970,14 @@ const handleResize = () => {
   renderer.setSize(width, height)
 }
 
+// Disable drag interaction during showcase mode
+const dragEnabled = computed(() => !isShowcaseActive.value)
+
 // Use navigation composable for drag tracking only (no navigation)
 const { dragDeltaX, dragDeltaY, isDragging } = useCubeNavigation(
   props.images.length,
-  () => {} // No-op callback - navigation disabled
+  () => {}, // No-op callback - navigation disabled
+  dragEnabled // Pass drag enabled state to disable during showcase
 )
 
 // Public API for showcase mode control
@@ -811,11 +999,26 @@ function startShowcase() {
     return
   }
 
+  // Reset image offset for first cycle (show images 0-5)
+  showcaseImageOffset = 0
+  lastFaceShownInShowcase = -1 // Reset tracking
+  pendingSkippedFaceUpdate = null // Reset pending update
+
+  // Reset previously visible faces to prevent face cycling on first showcase rotation
+  if (camera && cube) {
+    previouslyVisibleFaces = getVisibleFaces()
+  }
+
+  // Assign first batch of images to faces
+  // This will skip loading if the correct images are already displayed
+  assignImagesToFacesForShowcase()
+
   isShowcaseActive.value = true
   showcaseCurrentIndex.value = 0
   showcaseAccumulatedTime.value = 0
   lastShowcaseFrameTime = performance.now()
-  if (DEBUG) console.log(`🎬 Showcase mode started: sequence [${showcaseSequence.value.join(', ')}]`)
+  if (DEBUG)
+    console.log(`🎬 Showcase mode started: sequence [${showcaseSequence.value.join(', ')}]`)
   emit('showcaseStarted')
 }
 

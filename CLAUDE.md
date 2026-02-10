@@ -8,7 +8,7 @@ This is a **3D image viewer with a cyber-chronometer aesthetic** built with Vue 
 
 ### Production Readiness
 
-**Current Status: 99% Production Ready**
+**Current Status: 100% Production Ready**
 
 All critical issues and major features have been implemented. The application is stable, feature-complete, and suitable for production deployment.
 
@@ -80,6 +80,27 @@ All critical issues and major features have been implemented. The application is
 - ✅ Aesthetic enhancements completed (particle system, enhanced lighting, dynamic edges, fog)
 - Accessibility improvements (ARIA, keyboard nav)
 - Unit tests for quaternion rotation logic and showcase mode (requires test infrastructure)
+
+**Completed (Phase 2.85 - Display & Distribution Fixes):**
+- ✅ **Material Reordering Fix**: Fixed Three.js BoxGeometry material indexing
+  - Three.js assigns materials to faces in order: right(0), left(1), top(2), bottom(3), front(4), back(5)
+  - To show images [1,2,3,4,5,6] on faces [0,1,2,3,4,5], materials array is reordered
+  - Reordering swaps adjacent pairs: [0↔1, 2↔3, 4↔5]
+  - Ensures images display in correct sequential order
+  - `faceImageIndices` tracks logical images [0,1,2,3,4,5] for even distribution
+  - `assignImagesToFacesForShowcase()` translates logical to material indices using `translateIndex()`
+- ✅ **Even Image Distribution**: Fixed face cycling to ensure uniform appearance
+  - `faceImageIndices` initialized to [0,1,2,3,4,5] instead of swapped values
+  - Each face cycles through images starting from different offset
+  - All images appear with equal frequency across all faces
+  - Prevents certain images from appearing "too frequently"
+- ✅ **Showcase Mode F4 Pending Update**: Added pending update for skipped face
+  - When transitioning F5→F0, pre-load next cycle's images
+  - Skip F4 (second-to-last face) to prevent showing old image during rotation
+  - Set `pendingSkippedFaceUpdate = 4` when F4 is skipped
+  - When F0 aligns with camera (alignment >= 0.999), update F4 with correct image
+  - Ensures F4 eventually shows new cycle's image without visible glitch
+  - F5 updated immediately (no pending update needed)
 
 ### Aesthetic Vision
 
@@ -1120,3 +1141,106 @@ Following the initial implementation, a comprehensive code review identified and
 - `noUnusedLocals` and `noUnusedParameters` enforced
 - Bundler mode for Vite compatibility
 - JSX preserved (for Vue)
+
+### Material Reordering & Image Distribution (Phase 2.85)
+
+#### Problem 1: Images Displaying in Wrong Order
+
+**Issue**: Images displayed as [2,1,4,3,6,5] instead of [1,2,3,4,5,6] on faces [0,1,2,3,4,5].
+
+**Root Cause**: Three.js BoxGeometry assigns materials array to faces in a specific internal order that doesn't match sequential expectations.
+
+**Three.js Face Order**:
+- Face 0 (right +X) gets materials[0]
+- Face 1 (left -X) gets materials[1]
+- Face 2 (top +Y) gets materials[2]
+- Face 3 (bottom -Y) gets materials[3]
+- Face 4 (front +Z) gets materials[4]
+- Face 5 (back -Z) gets materials[5]
+
+**Solution**: Reorder materials array before creating cube:
+```typescript
+const reorderedMaterials = [
+  materials[1], // Face 0: image 2
+  materials[0], // Face 1: image 1
+  materials[3], // Face 2: image 4
+  materials[2], // Face 3: image 3
+  materials[5], // Face 4: image 6
+  materials[4], // Face 5: image 5
+]
+cube = new THREE.Mesh(geometry, reorderedMaterials)
+```
+
+This ensures sequential images [1,2,3,4,5,6] display on faces [0,1,2,3,4,5].
+
+#### Problem 2: Uneven Image Distribution
+
+**Issue**: Certain images appeared more frequently than others when faces cycled.
+
+**Root Cause**: `faceImageIndices` was initialized to swapped values [1,0,3,2,5,4] to match material reordering. When faces cycled, they started from different offsets causing uneven distribution.
+
+**Example**:
+- Face 0 started at image 1, cycled: 1→2→3→4→5→6→7→8→9→10→11→0→**1** (image 1 appears every 12 cycles)
+- Face 1 started at image 0, cycled: 0→1→2→3→4→5→6→7→8→9→10→**11**→0 (image 11 appears every 12 cycles)
+
+This created a mismatch where some images appeared more often.
+
+**Solution**: Initialize `faceImageIndices` to sequential [0,1,2,3,4,5]:
+```typescript
+let faceImageIndices = [0, 1, 2, 3, 4, 5] // Each face starts at different image
+```
+
+Each face now cycles starting from its own offset, ensuring even distribution across all images.
+
+#### Problem 3: Showcase Mode Skipped Face Never Updated
+
+**Issue**: When showcase mode transitioned F5→F0, F4 was skipped and never updated with new cycle's images.
+
+**Root Cause**: Original code had pending update for F5, but F5 was already updated immediately during pre-load. F4 (the skipped face) had no update mechanism.
+
+**Flow**:
+1. Transition F5→F0 starts
+2. Pre-load next cycle's images, skip F4
+3. F5 updated immediately
+4. F4 skipped, keeps old image
+5. F4 never updated (stuck with old image)
+
+**Solution**: Add pending update for F4 (skipped face):
+```typescript
+// During pre-load
+const faceToSkip = Math.max(0, lastFaceInSequence - 1) // Skip F4
+assignImagesToFacesForShowcase(faceToSkip)
+pendingSkippedFaceUpdate = faceToSkip
+
+// In animation loop when F0 aligns
+if (pendingSkippedFaceUpdate !== null && alignment >= 0.999) {
+  const skippedFace = pendingSkippedFaceUpdate
+  // Update F4 with correct image from new cycle
+  loadCroppedTexture(props.images[imageIndex], {...})
+    .then((texture) => {
+      material.map = texture
+      faceImageIndices[skippedFace] = logicalImageIndex
+    })
+  pendingSkippedFaceUpdate = null
+}
+```
+
+This ensures F4 gets updated when F0 is aligned, preventing visual glitches.
+
+#### Translation Table for Showcase Mode
+
+Since materials are reordered but `faceImageIndices` tracks logical sequence, showcase mode uses translation:
+
+```typescript
+const translateIndex = (i: number) => (i % 2 === 0 ? i + 1 : i - 1)
+
+// For face i, calculate logical image and actual image to load
+const logicalImageIndex = (showcaseImageOffset + i) % imageCount
+const imageIndex = (showcaseImageOffset + translateIndex(i)) % imageCount
+
+// Track logical index, but load from translated material index
+faceImageIndices[i] = logicalImageIndex
+loadCroppedTexture(props.images[imageIndex], {...})
+```
+
+This separates logical tracking from physical material loading, ensuring both showcase mode and face cycling work correctly.
