@@ -79,7 +79,38 @@ All critical issues and major features have been implemented. The application is
 **Remaining Enhancements (Phase 3):**
 - ✅ Aesthetic enhancements completed (particle system, enhanced lighting, dynamic edges, fog)
 - Accessibility improvements (ARIA, keyboard nav)
-- Unit tests for quaternion rotation logic and showcase mode (requires test infrastructure)
+- ✅ Unit tests added for material reordering logic (Phase 2.86)
+- Additional tests for quaternion rotation logic and showcase mode (future work)
+
+**Completed (Phase 2.86 - Code Review & Testing):**
+- ✅ **Input Validation**: Comprehensive validation for `pendingSkippedFaceUpdate`
+  - Range check: validates face index is 0-5
+  - Type check: ensures value is integer
+  - Error logging: clear messages with automatic state cleanup
+  - Location: `src/components/MagicCube.vue:851-860`
+- ✅ **Race Condition Prevention**: `pendingUpdateTriggered` one-shot flag
+  - Prevents duplicate pending updates during rapid rotation
+  - Reset to `false` when setting new pending update
+  - Set to `true` after update executes
+  - Location: `src/components/MagicCube.vue:247, 769, 921`
+- ✅ **Code Deduplication**: Extracted `translateIndex` to module-level
+  - Single constant defined at `src/components/MagicCube.vue:249-253`
+  - Used in both `assignImagesToFacesForShowcase()` and pending update logic
+  - Eliminates duplicate function definitions
+  - Material reordering swaps adjacent pairs: [0↔1, 2↔3, 4↔5]
+- ✅ **Unit Test Infrastructure**: Vitest setup with comprehensive coverage
+  - Test file: `src/utils/materialReordering.spec.ts`
+  - 16 tests covering all aspects of material reordering logic
+  - Test categories:
+    - translateIndex function (adjacent pair swaps, symmetry)
+    - Face-to-image mapping (logical and material index calculations)
+    - Even distribution across faces
+    - Edge cases (valid/invalid indices)
+    - Full pipeline integration tests
+  - All tests passing: 16/16 in 2ms runtime
+  - Configuration: `vitest.config.ts` with jsdom environment
+  - Commands: `npm run test` (watch), `npm run test:run` (single), `npm run test:ui` (UI)
+  - Coverage provider: v8 with text and html reporters
 
 **Completed (Phase 2.85 - Display & Distribution Fixes):**
 - ✅ **Material Reordering Fix**: Fixed Three.js BoxGeometry material indexing
@@ -178,6 +209,15 @@ npm run lint:fix
 
 # Format code with Prettier
 npm run format
+
+# Run tests in watch mode
+npm run test
+
+# Run tests once
+npm run test:run
+
+# Run tests with UI interface
+npm run test:ui
 ```
 
 ## Image Management
