@@ -220,6 +220,267 @@ npm run test:run
 npm run test:ui
 ```
 
+## File Structure
+
+```
+src/
+├── App.vue                    # Root component, provides sample images and showcase controls
+├── main.ts                    # Vue app entry point
+├── vite-env.d.ts             # Vite environment type declarations
+├── styles/
+│   └── main.css              # Global styles with soft cocktail aesthetic system
+├── components/
+│   └── MagicCube.vue         # Main 3D cube component with Three.js logic (~1000 lines)
+├── composables/
+│   └── useCubeNavigation.ts  # Gesture handling composable for drag tracking
+├── utils/
+│   ├── textureCropping.ts    # Canvas-based image cropping utilities
+│   └── materialReordering.spec.ts  # Unit tests for material reordering logic
+└── assets/
+    └── images/               # Image directory (auto-loaded by Vite glob)
+        ├── 0001.jpeg - 0012.png  # Sequential image naming
+        └── (add images here, auto-detected)
+```
+
+## TypeScript Patterns
+
+### Configuration (tsconfig.json)
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "moduleResolution": "bundler",
+    "moduleDetection": "force"
+  }
+}
+```
+
+### Key Type Definitions
+
+**MagicCube.vue Props:**
+```typescript
+interface Props {
+  images: string[]                    // Required: Array of image URLs
+  cropStrategy?: CropStrategy         // 'cover' | 'contain' | 'fill' (default: 'cover')
+  cropSize?: number                   // Target square size (default: 2048)
+  showcaseMode?: ShowcaseMode         // Optional showcase configuration
+}
+
+interface ShowcaseMode {
+  enabled: boolean                    // Enable showcase mode
+  sequence: number[]                  // Face sequence to display [0,2,4,...]
+  faceDuration?: number              // Duration per face (ms, default: 3000)
+  autoStart?: boolean                 // Start on mount (default: false)
+  loop?: boolean                      // Loop sequence (default: true)
+  rotationSpeed?: number              // Slerp factor (default: 0.02)
+}
+```
+
+**Texture Cropping Types:**
+```typescript
+export type CropStrategy = 'cover' | 'contain' | 'fill'
+
+export interface CropOptions {
+  strategy?: CropStrategy
+  targetSize?: number
+  anisotropy?: number                 // Default: 16 (safe for modern GPUs)
+}
+```
+
+**Composable Types:**
+```typescript
+export type NavigationState = 'idle' | 'dragging'
+```
+
+### Component Patterns
+
+**Vue 3 Composition API with `<script setup>`:**
+```vue
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+
+// Props with TypeScript interface
+interface Props {
+  images: string[]
+  cropStrategy?: 'cover' | 'contain' | 'fill'
+}
+const props = withDefaults(defineProps<Props>(), {
+  cropStrategy: 'cover'
+})
+
+// Events with TypeScript types
+const emit = defineEmits<{
+  showcaseStarted: []
+  showcaseStopped: []
+}>()
+
+// Refs for DOM elements
+const container = ref<HTMLDivElement>()
+const canvas = ref<HTMLCanvasElement>()
+
+// Reactive state
+const isDragging = ref(false)
+
+// Computed properties
+const rotation = computed(() => ...)
+
+// Lifecycle hooks
+onMounted(() => {
+  // Initialize Three.js scene
+})
+
+onUnmounted(() => {
+  // Cleanup Three.js resources
+  cube.material.forEach(m => m.dispose())
+  cube.geometry.dispose()
+})
+
+// Expose public API
+defineExpose({
+  startShowcase,
+  stopShowcase,
+  toggleShowcase
+})
+</script>
+```
+
+## Code Conventions
+
+### ESLint Configuration
+
+**File:** `eslint.config.js`
+
+```javascript
+export default [
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  ...pluginVue.configs['flat/essential'],
+  prettierRecommended,
+  {
+    rules: {
+      'no-undef': 'off',                              // TypeScript handles this
+      'vue/multi-word-component-names': 'off',        // Allow single-word components
+      '@typescript-eslint/no-explicit-any': 'warn',   // Warn on any, not error
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }  // Prefix unused with _
+      ]
+    }
+  }
+]
+```
+
+**Key Rules:**
+- TypeScript strict mode enforced
+- Unused variables/parameters must be prefixed with `_`
+- `any` types allowed only with warning
+- Multi-word component names not required
+- Vue parser for `.vue` files
+
+### Prettier Configuration
+
+**File:** `.prettierrc`
+
+```json
+{
+  "semi": false,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "es5",
+  "printWidth": 100,
+  "arrowParens": "always",
+  "endOfLine": "lf"
+}
+```
+
+**Style:**
+- No semicolons
+- Single quotes for strings
+- 2-space indentation
+- Trailing commas in ES5-compatible locations
+- 100 character line width
+- Always include parens for arrow functions with single parameter
+
+### Import Patterns
+
+```typescript
+// Vue imports - Composition API
+import { ref, computed, onMounted, onUnmounted, type Ref } from 'vue'
+
+// Three.js - namespace import
+import * as THREE from 'three'
+
+// Types - use `type` keyword for type-only imports
+import type { CropStrategy } from './textureCropping'
+
+// Relative imports for project files
+import MagicCube from './components/MagicCube.vue'
+```
+
+### Naming Conventions
+
+- **Components:** PascalCase (e.g., `MagicCube.vue`, `App.vue`)
+- **Composables:** camelCase with `use` prefix (e.g., `useCubeNavigation`)
+- **Utilities:** camelCase (e.g., `textureCropping.ts`, `loadCroppedTexture`)
+- **Types/Interfaces:** PascalCase (e.g., `Props`, `ShowcaseMode`, `CropOptions`)
+- **Constants:** UPPER_SNAKE_CASE (e.g., `COOLDOWN_MS`, `SLERP_FACTOR`)
+- **Variables/Functions:** camelCase (e.g., `isDragging`, `startShowcase`)
+- **Test files:** `.spec.ts` suffix (e.g., `materialReordering.spec.ts`)
+
+## Testing
+
+### Vitest Configuration
+
+**File:** `vitest.config.ts`
+
+```typescript
+export default defineConfig({
+  test: {
+    globals: true,                      // Use global test functions
+    environment: 'jsdom',               // DOM environment for Vue
+    include: ['src/**/*.{test,spec}.{js,ts}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      exclude: ['node_modules/', 'src/main.ts', 'src/vite-env.d.ts']
+    }
+  }
+})
+```
+
+### Test Patterns
+
+**Unit Test Structure:**
+```typescript
+import { describe, it, expect } from 'vitest'
+
+describe('Feature Name', () => {
+  describe('Specific Behavior', () => {
+    it('should do something expected', () => {
+      // Arrange
+      const input = ...
+
+      // Act
+      const result = functionUnderTest(input)
+
+      // Assert
+      expect(result).toBe(expected)
+    })
+  })
+})
+```
+
+**Current Test Coverage:**
+- `src/utils/materialReordering.spec.ts` - 16 tests covering:
+  - `translateIndex` function swaps
+  - Face-to-image mapping
+  - Even distribution across faces
+  - Edge cases and integration tests
+
 ## Image Management
 
 ### Image Directory Structure
