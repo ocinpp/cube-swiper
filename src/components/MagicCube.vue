@@ -241,7 +241,6 @@ let previouslyVisibleFaces = new Set<number>()
 let faceImageIndices = [0, 1, 2, 3, 4, 5] // Initially mapped 1:1
 let faceChangeTimestamps = [0, 0, 0, 0, 0, 0]
 let showcaseImageOffset = 0 // Offset into images array for current showcase cycle
-let lastFaceShownInShowcase = -1 // Track which face was shown last
 let pendingSkippedFaceUpdate = null as number | null // Track pending update for skipped face (F4)
 let pendingUpdateTriggered = false // Prevent duplicate pending updates during rapid rotation
 const COOLDOWN_MS = 3000 // 3 seconds
@@ -437,7 +436,6 @@ function initShowcaseMode() {
   if (props.showcaseMode.autoStart) {
     // Reset showcase state
     showcaseImageOffset = 0 // Reset image offset
-    lastFaceShownInShowcase = -1 // Reset tracking
     pendingSkippedFaceUpdate = null // Reset pending update
 
     // Reset previously visible faces to prevent face cycling on first showcase rotation
@@ -792,8 +790,6 @@ const animate = () => {
       // Update target quaternion so we don't snap back
       targetQuaternion.copy(cube.quaternion)
 
-      // Track which face we're showing
-      lastFaceShownInShowcase = currentFace
     } else {
       // Reset frame time when not active to avoid large delta on restart
       lastShowcaseFrameTime = 0
@@ -942,8 +938,6 @@ const animate = () => {
       }
     }
 
-    let showcaseUpdatedThisFrame = false // Only update one face per frame during showcase
-
     for (const faceIndex of nowVisibleFaces) {
       // Skip if was already visible
       if (previouslyVisibleFaces.has(faceIndex)) continue
@@ -1016,7 +1010,6 @@ function startShowcase() {
 
   // Reset image offset for first cycle (show images 0-5)
   showcaseImageOffset = 0
-  lastFaceShownInShowcase = -1 // Reset tracking
   pendingSkippedFaceUpdate = null // Reset pending update
 
   // Reset previously visible faces to prevent face cycling on first showcase rotation

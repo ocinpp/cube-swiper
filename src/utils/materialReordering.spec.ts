@@ -134,7 +134,7 @@ describe('Material Reordering - Face Image Distribution', () => {
       // After 12 cycles, each face should have shown all images exactly once
       const cyclesPerImage = 12
 
-      faceImageIndices.forEach((startIndex, face) => {
+      faceImageIndices.forEach((startIndex, _face) => {
         const imagesShown = new Set<number>()
         let currentIndex = startIndex
 
@@ -169,7 +169,7 @@ describe('Material Reordering - Face Image Distribution', () => {
       }
 
       // All images should appear exactly 6 times (once per face per cycle)
-      imageAppearances.forEach((count, imageIndex) => {
+      imageAppearances.forEach((count, _imageIndex) => {
         expect(count).toBe(cycleCount)
       })
     })
@@ -212,7 +212,7 @@ describe('Material Reordering - Integration', () => {
       const faceImageIndices: number[] = [0, 1, 2, 3, 4, 5]
 
       // Simulate first cycle assignment
-      const result = faceImageIndices.map((face, i) => {
+      const result = faceImageIndices.map((_face, i) => {
         const logicalImageIndex = (showcaseImageOffset + i) % imageCount
         const materialIndex = (showcaseImageOffset + translateIndex(i)) % imageCount
         return {
@@ -237,7 +237,7 @@ describe('Material Reordering - Integration', () => {
       const faceImageIndices: number[] = [0, 1, 2, 3, 4, 5]
 
       // Simulate second cycle assignment
-      const result = faceImageIndices.map((face, i) => {
+      const result = faceImageIndices.map((_face, i) => {
         const logicalImageIndex = (showcaseImageOffset + i) % imageCount
         const materialIndex = (showcaseImageOffset + translateIndex(i)) % imageCount
         return {
