@@ -105,8 +105,8 @@
       <div class="hud-value">DRAG TO ROTATE</div>
     </div>
 
-    <!-- HUD: Bottom Right - Frame Info -->
-    <div class="hud-panel hud-panel--bottom-right">
+    <!-- HUD: Bottom Right - Frame Info (hidden on mobile) -->
+    <div class="hud-panel hud-panel--bottom-right hidden md:block">
       <div class="hud-label">Frame</div>
       <div class="hud-value">{{ frameCounter }}</div>
       <div class="hud-divider hud-divider--right"></div>
