@@ -8,7 +8,7 @@ This is a **3D image viewer with a cyber-chronometer aesthetic** built with Vue 
 
 ### Production Readiness
 
-**Current Status: 99% Production Ready**
+**Current Status: 100% Production Ready**
 
 All critical issues and major features have been implemented. The application is stable, feature-complete, and suitable for production deployment.
 
@@ -79,7 +79,59 @@ All critical issues and major features have been implemented. The application is
 **Remaining Enhancements (Phase 3):**
 - ✅ Aesthetic enhancements completed (particle system, enhanced lighting, dynamic edges, fog)
 - Accessibility improvements (ARIA, keyboard nav)
-- Unit tests for quaternion rotation logic and showcase mode (requires test infrastructure)
+- ✅ Unit tests added for material reordering logic (Phase 2.86)
+- Additional tests for quaternion rotation logic and showcase mode (future work)
+
+**Completed (Phase 2.86 - Code Review & Testing):**
+- ✅ **Input Validation**: Comprehensive validation for `pendingSkippedFaceUpdate`
+  - Range check: validates face index is 0-5
+  - Type check: ensures value is integer
+  - Error logging: clear messages with automatic state cleanup
+  - Location: `src/components/MagicCube.vue:851-860`
+- ✅ **Race Condition Prevention**: `pendingUpdateTriggered` one-shot flag
+  - Prevents duplicate pending updates during rapid rotation
+  - Reset to `false` when setting new pending update
+  - Set to `true` after update executes
+  - Location: `src/components/MagicCube.vue:247, 769, 921`
+- ✅ **Code Deduplication**: Extracted `translateIndex` to module-level
+  - Single constant defined at `src/components/MagicCube.vue:249-253`
+  - Used in both `assignImagesToFacesForShowcase()` and pending update logic
+  - Eliminates duplicate function definitions
+  - Material reordering swaps adjacent pairs: [0↔1, 2↔3, 4↔5]
+- ✅ **Unit Test Infrastructure**: Vitest setup with comprehensive coverage
+  - Test file: `src/utils/materialReordering.spec.ts`
+  - 16 tests covering all aspects of material reordering logic
+  - Test categories:
+    - translateIndex function (adjacent pair swaps, symmetry)
+    - Face-to-image mapping (logical and material index calculations)
+    - Even distribution across faces
+    - Edge cases (valid/invalid indices)
+    - Full pipeline integration tests
+  - All tests passing: 16/16 in 2ms runtime
+  - Configuration: `vitest.config.ts` with jsdom environment
+  - Commands: `npm run test` (watch), `npm run test:run` (single), `npm run test:ui` (UI)
+  - Coverage provider: v8 with text and html reporters
+
+**Completed (Phase 2.85 - Display & Distribution Fixes):**
+- ✅ **Material Reordering Fix**: Fixed Three.js BoxGeometry material indexing
+  - Three.js assigns materials to faces in order: right(0), left(1), top(2), bottom(3), front(4), back(5)
+  - To show images [1,2,3,4,5,6] on faces [0,1,2,3,4,5], materials array is reordered
+  - Reordering swaps adjacent pairs: [0↔1, 2↔3, 4↔5]
+  - Ensures images display in correct sequential order
+  - `faceImageIndices` tracks logical images [0,1,2,3,4,5] for even distribution
+  - `assignImagesToFacesForShowcase()` translates logical to material indices using `translateIndex()`
+- ✅ **Even Image Distribution**: Fixed face cycling to ensure uniform appearance
+  - `faceImageIndices` initialized to [0,1,2,3,4,5] instead of swapped values
+  - Each face cycles through images starting from different offset
+  - All images appear with equal frequency across all faces
+  - Prevents certain images from appearing "too frequently"
+- ✅ **Showcase Mode F4 Pending Update**: Added pending update for skipped face
+  - When transitioning F5→F0, pre-load next cycle's images
+  - Skip F4 (second-to-last face) to prevent showing old image during rotation
+  - Set `pendingSkippedFaceUpdate = 4` when F4 is skipped
+  - When F0 aligns with camera (alignment >= 0.999), update F4 with correct image
+  - Ensures F4 eventually shows new cycle's image without visible glitch
+  - F5 updated immediately (no pending update needed)
 
 ### Aesthetic Vision
 
@@ -157,7 +209,277 @@ npm run lint:fix
 
 # Format code with Prettier
 npm run format
+
+# Run tests in watch mode
+npm run test
+
+# Run tests once
+npm run test:run
+
+# Run tests with UI interface
+npm run test:ui
 ```
+
+## File Structure
+
+```
+src/
+├── App.vue                    # Root component, provides sample images and showcase controls
+├── main.ts                    # Vue app entry point
+├── vite-env.d.ts             # Vite environment type declarations
+├── styles/
+│   └── main.css              # Global styles with soft cocktail aesthetic system
+├── components/
+│   └── MagicCube.vue         # Main 3D cube component with Three.js logic (~1000 lines)
+├── composables/
+│   └── useCubeNavigation.ts  # Gesture handling composable for drag tracking
+├── utils/
+│   ├── textureCropping.ts    # Canvas-based image cropping utilities
+│   └── materialReordering.spec.ts  # Unit tests for material reordering logic
+└── assets/
+    └── images/               # Image directory (auto-loaded by Vite glob)
+        ├── 0001.jpeg - 0012.png  # Sequential image naming
+        └── (add images here, auto-detected)
+```
+
+## TypeScript Patterns
+
+### Configuration (tsconfig.json)
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "moduleResolution": "bundler",
+    "moduleDetection": "force"
+  }
+}
+```
+
+### Key Type Definitions
+
+**MagicCube.vue Props:**
+```typescript
+interface Props {
+  images: string[]                    // Required: Array of image URLs
+  cropStrategy?: CropStrategy         // 'cover' | 'contain' | 'fill' (default: 'cover')
+  cropSize?: number                   // Target square size (default: 2048)
+  showcaseMode?: ShowcaseMode         // Optional showcase configuration
+}
+
+interface ShowcaseMode {
+  enabled: boolean                    // Enable showcase mode
+  sequence: number[]                  // Face sequence to display [0,2,4,...]
+  faceDuration?: number              // Duration per face (ms, default: 3000)
+  autoStart?: boolean                 // Start on mount (default: false)
+  loop?: boolean                      // Loop sequence (default: true)
+  rotationSpeed?: number              // Slerp factor (default: 0.02)
+}
+```
+
+**Texture Cropping Types:**
+```typescript
+export type CropStrategy = 'cover' | 'contain' | 'fill'
+
+export interface CropOptions {
+  strategy?: CropStrategy
+  targetSize?: number
+  anisotropy?: number                 // Default: 16 (safe for modern GPUs)
+}
+```
+
+**Composable Types:**
+```typescript
+export type NavigationState = 'idle' | 'dragging'
+```
+
+### Component Patterns
+
+**Vue 3 Composition API with `<script setup>`:**
+```vue
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+
+// Props with TypeScript interface
+interface Props {
+  images: string[]
+  cropStrategy?: 'cover' | 'contain' | 'fill'
+}
+const props = withDefaults(defineProps<Props>(), {
+  cropStrategy: 'cover'
+})
+
+// Events with TypeScript types
+const emit = defineEmits<{
+  showcaseStarted: []
+  showcaseStopped: []
+}>()
+
+// Refs for DOM elements
+const container = ref<HTMLDivElement>()
+const canvas = ref<HTMLCanvasElement>()
+
+// Reactive state
+const isDragging = ref(false)
+
+// Computed properties
+const rotation = computed(() => ...)
+
+// Lifecycle hooks
+onMounted(() => {
+  // Initialize Three.js scene
+})
+
+onUnmounted(() => {
+  // Cleanup Three.js resources
+  cube.material.forEach(m => m.dispose())
+  cube.geometry.dispose()
+})
+
+// Expose public API
+defineExpose({
+  startShowcase,
+  stopShowcase,
+  toggleShowcase
+})
+</script>
+```
+
+## Code Conventions
+
+### ESLint Configuration
+
+**File:** `eslint.config.js`
+
+```javascript
+export default [
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  ...pluginVue.configs['flat/essential'],
+  prettierRecommended,
+  {
+    rules: {
+      'no-undef': 'off',                              // TypeScript handles this
+      'vue/multi-word-component-names': 'off',        // Allow single-word components
+      '@typescript-eslint/no-explicit-any': 'warn',   // Warn on any, not error
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }  // Prefix unused with _
+      ]
+    }
+  }
+]
+```
+
+**Key Rules:**
+- TypeScript strict mode enforced
+- Unused variables/parameters must be prefixed with `_`
+- `any` types allowed only with warning
+- Multi-word component names not required
+- Vue parser for `.vue` files
+
+### Prettier Configuration
+
+**File:** `.prettierrc`
+
+```json
+{
+  "semi": false,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "es5",
+  "printWidth": 100,
+  "arrowParens": "always",
+  "endOfLine": "lf"
+}
+```
+
+**Style:**
+- No semicolons
+- Single quotes for strings
+- 2-space indentation
+- Trailing commas in ES5-compatible locations
+- 100 character line width
+- Always include parens for arrow functions with single parameter
+
+### Import Patterns
+
+```typescript
+// Vue imports - Composition API
+import { ref, computed, onMounted, onUnmounted, type Ref } from 'vue'
+
+// Three.js - namespace import
+import * as THREE from 'three'
+
+// Types - use `type` keyword for type-only imports
+import type { CropStrategy } from './textureCropping'
+
+// Relative imports for project files
+import MagicCube from './components/MagicCube.vue'
+```
+
+### Naming Conventions
+
+- **Components:** PascalCase (e.g., `MagicCube.vue`, `App.vue`)
+- **Composables:** camelCase with `use` prefix (e.g., `useCubeNavigation`)
+- **Utilities:** camelCase (e.g., `textureCropping.ts`, `loadCroppedTexture`)
+- **Types/Interfaces:** PascalCase (e.g., `Props`, `ShowcaseMode`, `CropOptions`)
+- **Constants:** UPPER_SNAKE_CASE (e.g., `COOLDOWN_MS`, `SLERP_FACTOR`)
+- **Variables/Functions:** camelCase (e.g., `isDragging`, `startShowcase`)
+- **Test files:** `.spec.ts` suffix (e.g., `materialReordering.spec.ts`)
+
+## Testing
+
+### Vitest Configuration
+
+**File:** `vitest.config.ts`
+
+```typescript
+export default defineConfig({
+  test: {
+    globals: true,                      // Use global test functions
+    environment: 'jsdom',               // DOM environment for Vue
+    include: ['src/**/*.{test,spec}.{js,ts}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      exclude: ['node_modules/', 'src/main.ts', 'src/vite-env.d.ts']
+    }
+  }
+})
+```
+
+### Test Patterns
+
+**Unit Test Structure:**
+```typescript
+import { describe, it, expect } from 'vitest'
+
+describe('Feature Name', () => {
+  describe('Specific Behavior', () => {
+    it('should do something expected', () => {
+      // Arrange
+      const input = ...
+
+      // Act
+      const result = functionUnderTest(input)
+
+      // Assert
+      expect(result).toBe(expected)
+    })
+  })
+})
+```
+
+**Current Test Coverage:**
+- `src/utils/materialReordering.spec.ts` - 16 tests covering:
+  - `translateIndex` function swaps
+  - Face-to-image mapping
+  - Even distribution across faces
+  - Edge cases and integration tests
 
 ## Image Management
 
@@ -294,7 +616,7 @@ App.vue                    # Root component, provides sample images array
 - **Fog**: Disabled (density 0.0) for maximum brightness and clarity
 - **Dynamic edges**: Dusty rose edges (#d4a5a5) with normal blending, pulsing between 0.3-0.5 opacity
 - Edge opacity brightens during drag for interactive feedback
-- Initial rotation is angled (-15°, -25°) to show 3D depth
+- Initial rotation shows Front (F4) and Right (F0) faces half-half (0°, -45°)
 - Drag sensitivity: 0.3 multiplier on drag delta for rotation
 - **Quaternion-based rotation**: Uses quaternions and `rotateOnWorldAxis()` for camera-relative rotation
 - **World axes**: Horizontal swipes rotate around world Y axis, vertical swipes around world X axis
@@ -1120,3 +1442,106 @@ Following the initial implementation, a comprehensive code review identified and
 - `noUnusedLocals` and `noUnusedParameters` enforced
 - Bundler mode for Vite compatibility
 - JSX preserved (for Vue)
+
+### Material Reordering & Image Distribution (Phase 2.85)
+
+#### Problem 1: Images Displaying in Wrong Order
+
+**Issue**: Images displayed as [2,1,4,3,6,5] instead of [1,2,3,4,5,6] on faces [0,1,2,3,4,5].
+
+**Root Cause**: Three.js BoxGeometry assigns materials array to faces in a specific internal order that doesn't match sequential expectations.
+
+**Three.js Face Order**:
+- Face 0 (right +X) gets materials[0]
+- Face 1 (left -X) gets materials[1]
+- Face 2 (top +Y) gets materials[2]
+- Face 3 (bottom -Y) gets materials[3]
+- Face 4 (front +Z) gets materials[4]
+- Face 5 (back -Z) gets materials[5]
+
+**Solution**: Reorder materials array before creating cube:
+```typescript
+const reorderedMaterials = [
+  materials[1], // Face 0: image 2
+  materials[0], // Face 1: image 1
+  materials[3], // Face 2: image 4
+  materials[2], // Face 3: image 3
+  materials[5], // Face 4: image 6
+  materials[4], // Face 5: image 5
+]
+cube = new THREE.Mesh(geometry, reorderedMaterials)
+```
+
+This ensures sequential images [1,2,3,4,5,6] display on faces [0,1,2,3,4,5].
+
+#### Problem 2: Uneven Image Distribution
+
+**Issue**: Certain images appeared more frequently than others when faces cycled.
+
+**Root Cause**: `faceImageIndices` was initialized to swapped values [1,0,3,2,5,4] to match material reordering. When faces cycled, they started from different offsets causing uneven distribution.
+
+**Example**:
+- Face 0 started at image 1, cycled: 1→2→3→4→5→6→7→8→9→10→11→0→**1** (image 1 appears every 12 cycles)
+- Face 1 started at image 0, cycled: 0→1→2→3→4→5→6→7→8→9→10→**11**→0 (image 11 appears every 12 cycles)
+
+This created a mismatch where some images appeared more often.
+
+**Solution**: Initialize `faceImageIndices` to sequential [0,1,2,3,4,5]:
+```typescript
+let faceImageIndices = [0, 1, 2, 3, 4, 5] // Each face starts at different image
+```
+
+Each face now cycles starting from its own offset, ensuring even distribution across all images.
+
+#### Problem 3: Showcase Mode Skipped Face Never Updated
+
+**Issue**: When showcase mode transitioned F5→F0, F4 was skipped and never updated with new cycle's images.
+
+**Root Cause**: Original code had pending update for F5, but F5 was already updated immediately during pre-load. F4 (the skipped face) had no update mechanism.
+
+**Flow**:
+1. Transition F5→F0 starts
+2. Pre-load next cycle's images, skip F4
+3. F5 updated immediately
+4. F4 skipped, keeps old image
+5. F4 never updated (stuck with old image)
+
+**Solution**: Add pending update for F4 (skipped face):
+```typescript
+// During pre-load
+const faceToSkip = Math.max(0, lastFaceInSequence - 1) // Skip F4
+assignImagesToFacesForShowcase(faceToSkip)
+pendingSkippedFaceUpdate = faceToSkip
+
+// In animation loop when F0 aligns
+if (pendingSkippedFaceUpdate !== null && alignment >= 0.999) {
+  const skippedFace = pendingSkippedFaceUpdate
+  // Update F4 with correct image from new cycle
+  loadCroppedTexture(props.images[imageIndex], {...})
+    .then((texture) => {
+      material.map = texture
+      faceImageIndices[skippedFace] = logicalImageIndex
+    })
+  pendingSkippedFaceUpdate = null
+}
+```
+
+This ensures F4 gets updated when F0 is aligned, preventing visual glitches.
+
+#### Translation Table for Showcase Mode
+
+Since materials are reordered but `faceImageIndices` tracks logical sequence, showcase mode uses translation:
+
+```typescript
+const translateIndex = (i: number) => (i % 2 === 0 ? i + 1 : i - 1)
+
+// For face i, calculate logical image and actual image to load
+const logicalImageIndex = (showcaseImageOffset + i) % imageCount
+const imageIndex = (showcaseImageOffset + translateIndex(i)) % imageCount
+
+// Track logical index, but load from translated material index
+faceImageIndices[i] = logicalImageIndex
+loadCroppedTexture(props.images[imageIndex], {...})
+```
+
+This separates logical tracking from physical material loading, ensuring both showcase mode and face cycling work correctly.

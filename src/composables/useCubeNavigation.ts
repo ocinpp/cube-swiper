@@ -1,10 +1,11 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, type Ref } from 'vue'
 
 export type NavigationState = 'idle' | 'dragging'
 
 export function useCubeNavigation(
   imageCount: number,
-  onNavigate: (direction: 'next' | 'prev') => void
+  onNavigate: (direction: 'next' | 'prev') => void,
+  dragEnabled?: Ref<boolean>
 ) {
   const currentIndex = ref(0)
   const navigationState = ref<NavigationState>('idle')
@@ -28,6 +29,13 @@ export function useCubeNavigation(
   const currentImage = computed(() => currentIndex.value)
 
   const handlePointerDown = (e: PointerEvent) => {
+    // Check if dragging is disabled (e.g., during showcase mode)
+    if (dragEnabled?.value === false) {
+      if (import.meta.env.DEV) {
+        console.log('🚫 Drag disabled - pointer event ignored')
+      }
+      return
+    }
     dragStartX.value = e.clientX
     dragStartY.value = e.clientY
     lastX = e.clientX
