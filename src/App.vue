@@ -6,11 +6,11 @@
       :images="sampleImages"
       :showcase-mode="{
         enabled: true,
-        sequence: [0, 2, 4, 5],
-        faceDuration: 3000,
+        sequence: [0, 1, 2, 3, 4, 5],
+        faceDuration: 4000,
         autoStart: false,
         loop: true,
-        rotationSpeed: 0.02
+        rotationSpeed: 0.02,
       }"
       @showcase-started="onShowcaseStarted"
       @showcase-stopped="onShowcaseStopped"
@@ -18,7 +18,9 @@
     />
 
     <!-- Controls container -->
-    <div class="fixed left-1/2 -translate-x-1/2 z-50 md:bottom-8 bottom-32 flex flex-col items-center gap-3">
+    <div
+      class="fixed left-1/2 -translate-x-1/2 z-50 md:bottom-8 bottom-32 flex flex-col items-center gap-3"
+    >
       <!-- Showcase control button -->
       <button
         @click="toggleShowcase"
