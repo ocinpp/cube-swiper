@@ -243,7 +243,12 @@ let faceChangeTimestamps = [0, 0, 0, 0, 0, 0]
 let showcaseImageOffset = 0 // Offset into images array for current showcase cycle
 let lastFaceShownInShowcase = -1 // Track which face was shown last
 let pendingSkippedFaceUpdate = null as number | null // Track pending update for skipped face (F4)
+let pendingUpdateTriggered = false // Prevent duplicate pending updates during rapid rotation
 const COOLDOWN_MS = 3000 // 3 seconds
+
+// Translation table: accounts for material reordering when loading images
+// Material reordering swaps adjacent pairs: [0↔1, 2↔3, 4↔5]
+const translateIndex = (i: number) => (i % 2 === 0 ? i + 1 : i - 1)
 
 // Debug mode check for console logging
 const DEBUG = import.meta.env.DEV
@@ -277,11 +282,6 @@ function formatRotation(degrees: number): string {
 // Showcase mode: Assign images to faces for current cycle
 function assignImagesToFacesForShowcase(skipFace?: number) {
   const imageCount = props.images.length
-
-  // Translation table: accounts for material reordering when loading images
-  // Material reordering swaps adjacent pairs: [0↔1, 2↔3, 4↔5]
-  // This means face i needs material at translateIndex(i) to show logical image i
-  const translateIndex = (i: number) => (i % 2 === 0 ? i + 1 : i - 1)
 
   // Assign 6 images to 6 faces based on current offset
   for (let i = 0; i < 6; i++) {
@@ -766,6 +766,7 @@ const animate = () => {
             if (DEBUG) console.log(`🔄 Pre-loading next cycle, skipping F${faceToSkip}`)
             assignImagesToFacesForShowcase(faceToSkip)
             pendingSkippedFaceUpdate = faceToSkip // Set pending update for skipped face
+            pendingUpdateTriggered = false // Reset one-shot flag for next cycle
           }
 
           // End of sequence if not looping
@@ -847,7 +848,20 @@ const animate = () => {
 
     // Check if we have a pending update for the skipped face (F4)
     // Update when the FIRST face of the new cycle is perfectly aligned with camera
-    if (pendingSkippedFaceUpdate !== null) {
+    if (pendingSkippedFaceUpdate !== null && !pendingUpdateTriggered) {
+      // Validate face index is within valid range
+      if (
+        pendingSkippedFaceUpdate < 0 ||
+        pendingSkippedFaceUpdate >= 6 ||
+        !Number.isInteger(pendingSkippedFaceUpdate)
+      ) {
+        console.error(
+          `Invalid pendingSkippedFaceUpdate: ${pendingSkippedFaceUpdate}. Must be 0-5.`
+        )
+        pendingSkippedFaceUpdate = null
+        return
+      }
+
       const firstFaceInSequence = showcaseSequence.value[0]
 
       // Check if F0 is aligned with camera by checking its dot product
@@ -862,7 +876,6 @@ const animate = () => {
       if (alignment >= 0.999) {
         const skippedFace = pendingSkippedFaceUpdate
         // Calculate the image index for the skipped face
-        const translateIndex = (i: number) => (i % 2 === 0 ? i + 1 : i - 1)
         const imageIndex = (showcaseImageOffset + translateIndex(skippedFace)) % props.images.length
 
         if (DEBUG) {
@@ -892,7 +905,8 @@ const animate = () => {
               material.needsUpdate = true
 
               // Update logical image index
-              faceImageIndices[skippedFace] = (showcaseImageOffset + skippedFace) % props.images.length
+              faceImageIndices[skippedFace] =
+                (showcaseImageOffset + skippedFace) % props.images.length
 
               if (DEBUG) {
                 console.log(`✅ LOADED: F${skippedFace} texture updated to img${imageIndex}`)
@@ -904,6 +918,7 @@ const animate = () => {
         }
 
         pendingSkippedFaceUpdate = null // Clear pending update
+        pendingUpdateTriggered = true // Mark as triggered to prevent duplicates
       }
     }
 
