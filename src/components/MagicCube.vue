@@ -588,9 +588,9 @@ const initThreeJS = async () => {
   // Initialize particle system
   initParticleSystem(isMobile)
 
-  // Set initial rotation to show 3D effect
-  cube.rotation.x = THREE.MathUtils.degToRad(-15)
-  cube.rotation.y = THREE.MathUtils.degToRad(-25)
+  // Set initial rotation to show Front (F4) and Right (F0) faces half-half
+  cube.rotation.x = THREE.MathUtils.degToRad(0)   // No tilt (level cube)
+  cube.rotation.y = THREE.MathUtils.degToRad(-45) // Rotate 45° toward right face
 
   // Initialize target quaternion from initial rotation
   targetQuaternion = cube.quaternion.clone()

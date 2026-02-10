@@ -254,6 +254,11 @@ function onShowcaseCompleted() {
 
 ## Controls
 
+- **Initial Orientation**: Cube starts with Front (F4) and Right (F0) faces displayed half-half
+  - X rotation: 0° (level, no tilt)
+  - Y rotation: -45° (45° toward right face from front center)
+  - Creates balanced composition showing two faces equally
+
 - **Drag**: Rotate the cube freely in any direction with intuitive camera-relative controls
   - Swipe right → faces rotate right on screen
   - Swipe left → faces rotate left on screen
@@ -290,12 +295,14 @@ function onShowcaseCompleted() {
 
 ### Face Number Reference
 
-- **F0**: Right (+X)
+- **F0**: Right (+X) - Visible on right half at startup
 - **F1**: Left (-X)
 - **F2**: Top (+Y)
 - **F3**: Bottom (-Y)
-- **F4**: Front (+Z)
+- **F4**: Front (+Z) - Visible on left half at startup
 - **F5**: Back (-Z)
+
+**Initially visible faces**: Front (F4) and Right (F0) are displayed in a half-half composition when the cube loads.
 
 ## Browser Compatibility
 

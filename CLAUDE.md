@@ -355,7 +355,7 @@ App.vue                    # Root component, provides sample images array
 - **Fog**: Disabled (density 0.0) for maximum brightness and clarity
 - **Dynamic edges**: Dusty rose edges (#d4a5a5) with normal blending, pulsing between 0.3-0.5 opacity
 - Edge opacity brightens during drag for interactive feedback
-- Initial rotation is angled (-15°, -25°) to show 3D depth
+- Initial rotation shows Front (F4) and Right (F0) faces half-half (0°, -45°)
 - Drag sensitivity: 0.3 multiplier on drag delta for rotation
 - **Quaternion-based rotation**: Uses quaternions and `rotateOnWorldAxis()` for camera-relative rotation
 - **World axes**: Horizontal swipes rotate around world Y axis, vertical swipes around world X axis
