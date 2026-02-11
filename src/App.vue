@@ -19,7 +19,7 @@
 
     <!-- Controls container -->
     <div
-      class="fixed left-1/2 -translate-x-1/2 z-50 md:bottom-8 bottom-32 flex flex-col items-center gap-3"
+      class="fixed left-1/2 -translate-x-1/2 z-50 md:bottom-8 bottom-16 flex flex-col items-center gap-3"
     >
       <!-- Showcase control button -->
       <button

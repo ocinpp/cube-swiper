@@ -105,8 +105,8 @@
       <div class="hud-value">DRAG TO ROTATE</div>
     </div>
 
-    <!-- HUD: Bottom Right - Frame Info -->
-    <div class="hud-panel hud-panel--bottom-right">
+    <!-- HUD: Bottom Right - Frame Info (hidden on mobile) -->
+    <div class="hud-panel hud-panel--bottom-right hidden md:block">
       <div class="hud-label">Frame</div>
       <div class="hud-value">{{ frameCounter }}</div>
       <div class="hud-divider hud-divider--right"></div>
@@ -243,6 +243,7 @@ let faceChangeTimestamps = [0, 0, 0, 0, 0, 0]
 let showcaseImageOffset = 0 // Offset into images array for current showcase cycle
 let pendingSkippedFaceUpdate = null as number | null // Track pending update for skipped face (F4)
 let pendingUpdateTriggered = false // Prevent duplicate pending updates during rapid rotation
+let allPreloadedTextures: THREE.Texture[] = [] // Store all pre-loaded textures for instant swapping
 const COOLDOWN_MS = 3000 // 3 seconds
 
 // Translation table: accounts for material reordering when loading images
@@ -303,30 +304,27 @@ function assignImagesToFacesForShowcase(skipFace?: number) {
 
     faceImageIndices[i] = logicalImageIndex
 
-    // Update the texture immediately for this face
-    if (cube) {
+    // Update the texture immediately for this face using pre-loaded textures
+    if (cube && allPreloadedTextures.length > 0 && props.images.length > 0) {
       const materials = cube.material as THREE.MeshBasicMaterial[]
       const material = materials[i]
 
-      // Load the new image
-      loadCroppedTexture(props.images[imageIndex], {
-        strategy: props.cropStrategy,
-        targetSize: props.cropSize,
-      })
-        .then((texture) => {
-          texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+      // Use pre-loaded texture for instant swapping (no async loading)
+      const texture = allPreloadedTextures[imageIndex]
 
-          // Dispose old texture
-          if (material.map) {
-            material.map.dispose()
-          }
+      if (!texture) {
+        console.error(`Texture at index ${imageIndex} is undefined`)
+        continue
+      }
 
-          material.map = texture
-          material.needsUpdate = true
-        })
-        .catch((error) => {
-          console.error(`Failed to load texture for face ${i} (image ${imageIndex}):`, error)
-        })
+      // Dispose old texture only if it's not from our preloaded cache
+      // Preloaded textures are shared and must not be disposed
+      if (material.map && material.map !== texture && !allPreloadedTextures.includes(material.map)) {
+        material.map.dispose()
+      }
+
+      material.map = texture
+      material.needsUpdate = true
     }
   }
 
@@ -512,6 +510,10 @@ const initThreeJS = async () => {
   })
 
   console.log('🎉 All textures loaded successfully!')
+
+  // Store all textures for instant swapping during showcase cycle transitions
+  allPreloadedTextures = textures
+  if (DEBUG) console.log(`💾 Stored ${allPreloadedTextures.length} pre-loaded textures for showcase mode`)
 
   // Create materials for each face - MeshBasicMaterial for 100% browser-native brightness
   const materials = textures.map((texture) => {
@@ -881,36 +883,33 @@ const animate = () => {
           console.log(`   Updating skipped face F${skippedFace} to img${imageIndex}`)
         }
 
-        // Load and update the texture for the skipped face
-        if (cube) {
+        // Load and update the texture for the skipped face using pre-loaded textures
+        if (cube && allPreloadedTextures.length > 0 && props.images.length > 0) {
           const materials = cube.material as THREE.MeshBasicMaterial[]
           const material = materials[skippedFace]
 
-          loadCroppedTexture(props.images[imageIndex], {
-            strategy: props.cropStrategy,
-            targetSize: props.cropSize,
-          })
-            .then((texture) => {
-              texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+          // Use pre-loaded texture for instant swapping
+          const texture = allPreloadedTextures[imageIndex]
 
-              if (material.map) {
-                material.map.dispose()
-              }
+          if (!texture) {
+            console.error(`Texture at index ${imageIndex} is undefined`)
+            return
+          }
 
-              material.map = texture
-              material.needsUpdate = true
+          // Dispose old texture only if it's not from our preloaded cache
+          if (material.map && material.map !== texture && !allPreloadedTextures.includes(material.map)) {
+            material.map.dispose()
+          }
 
-              // Update logical image index
-              faceImageIndices[skippedFace] =
-                (showcaseImageOffset + skippedFace) % props.images.length
+          material.map = texture
+          material.needsUpdate = true
 
-              if (DEBUG) {
-                console.log(`✅ LOADED: F${skippedFace} texture updated to img${imageIndex}`)
-              }
-            })
-            .catch((error) => {
-              console.error(`Failed to load texture for face ${skippedFace} (image ${imageIndex}):`, error)
-            })
+          // Update logical image index
+          faceImageIndices[skippedFace] = (showcaseImageOffset + skippedFace) % props.images.length
+
+          if (DEBUG) {
+            console.log(`✅ LOADED: F${skippedFace} texture updated to img${imageIndex} (instant)`)
+          }
         }
 
         pendingSkippedFaceUpdate = null // Clear pending update
@@ -1153,6 +1152,16 @@ onUnmounted(() => {
   if (scene && scene.environment) {
     scene.environment.dispose()
   }
+
+  // Dispose of preloaded textures
+  // Note: We skip textures that are still referenced by materials to avoid double-disposal
+  allPreloadedTextures.forEach((texture) => {
+    const isInUse = cube && (cube.material as THREE.MeshBasicMaterial[]).some((m) => m.map === texture)
+    if (!isInUse) {
+      texture.dispose()
+    }
+  })
+  allPreloadedTextures = [] // Clear the array
 
   // Note: rotationHelper is a module-level const Object3D not in scene graph
   // No explicit cleanup needed - documented here for completeness
