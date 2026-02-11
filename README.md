@@ -411,6 +411,11 @@ The application has completed critical fixes and feature enhancements, making it
   - Showcase mode uses instant texture swapping (no async loading)
   - Eliminates mid-rotation sluggishness during cycle transitions
   - Drag-to-rotate mode unaffected (still uses async loading)
+- ✅ **Memory Safety**: Code review fixes for critical memory issues
+  - Texture disposal bug: Added check to prevent disposing shared preloaded textures
+  - Memory leak: Cleanup in `onUnmounted()` for allPreloadedTextures with in-use checks
+  - Edge cases: Defensive checks for empty images array and undefined textures
+  - Ensures no visual corruption or GPU memory leaks
 - ✅ **Mobile UI Adjustments**:
   - Frame Info panel hidden on mobile (responsive: hidden md:block)
   - Showcase button moved to bottom-16 on mobile (was bottom-32)
