@@ -305,15 +305,21 @@ function assignImagesToFacesForShowcase(skipFace?: number) {
     faceImageIndices[i] = logicalImageIndex
 
     // Update the texture immediately for this face using pre-loaded textures
-    if (cube && allPreloadedTextures.length > 0) {
+    if (cube && allPreloadedTextures.length > 0 && props.images.length > 0) {
       const materials = cube.material as THREE.MeshBasicMaterial[]
       const material = materials[i]
 
       // Use pre-loaded texture for instant swapping (no async loading)
       const texture = allPreloadedTextures[imageIndex]
 
-      // Dispose old texture to prevent memory leaks
-      if (material.map && material.map !== texture) {
+      if (!texture) {
+        console.error(`Texture at index ${imageIndex} is undefined`)
+        continue
+      }
+
+      // Dispose old texture only if it's not from our preloaded cache
+      // Preloaded textures are shared and must not be disposed
+      if (material.map && material.map !== texture && !allPreloadedTextures.includes(material.map)) {
         material.map.dispose()
       }
 
@@ -878,14 +884,20 @@ const animate = () => {
         }
 
         // Load and update the texture for the skipped face using pre-loaded textures
-        if (cube && allPreloadedTextures.length > 0) {
+        if (cube && allPreloadedTextures.length > 0 && props.images.length > 0) {
           const materials = cube.material as THREE.MeshBasicMaterial[]
           const material = materials[skippedFace]
 
           // Use pre-loaded texture for instant swapping
           const texture = allPreloadedTextures[imageIndex]
 
-          if (material.map && material.map !== texture) {
+          if (!texture) {
+            console.error(`Texture at index ${imageIndex} is undefined`)
+            return
+          }
+
+          // Dispose old texture only if it's not from our preloaded cache
+          if (material.map && material.map !== texture && !allPreloadedTextures.includes(material.map)) {
             material.map.dispose()
           }
 
@@ -1140,6 +1152,16 @@ onUnmounted(() => {
   if (scene && scene.environment) {
     scene.environment.dispose()
   }
+
+  // Dispose of preloaded textures
+  // Note: We skip textures that are still referenced by materials to avoid double-disposal
+  allPreloadedTextures.forEach((texture) => {
+    const isInUse = cube && (cube.material as THREE.MeshBasicMaterial[]).some((m) => m.map === texture)
+    if (!isInUse) {
+      texture.dispose()
+    }
+  })
+  allPreloadedTextures = [] // Clear the array
 
   // Note: rotationHelper is a module-level const Object3D not in scene graph
   // No explicit cleanup needed - documented here for completeness
