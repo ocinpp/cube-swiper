@@ -1,6 +1,6 @@
-# CHRONO CUBE - Precision Image Viewer
+# Cocktail Explorer - 3D Image Viewer
 
-An interactive 3D image viewer with a precision timekeeping aesthetic. Drag to rotate the cube freely in any direction and watch as faces dynamically change images when they come into view.
+An interactive 3D image viewer with a soft cocktail lounge aesthetic. Drag to rotate the cube freely in any direction and watch as faces dynamically change images when they come into view. Images display at 100% browser-native brightness for optimal viewing.
 
 ![Vue](https://img.shields.io/badge/Vue-3.5-42b883?logo=vue.js)
 ![Three.js](https://img.shields.io/badge/Three.js-0.170-000000?logo=three.js)
@@ -14,11 +14,13 @@ An interactive 3D image viewer with a precision timekeeping aesthetic. Drag to r
 - **Smart Cooldown System**: 3-second cooldown prevents excessive changes during rapid rotation
 - **Automatic Image Cropping**: Non-square images are center-cropped to fit cube faces without distortion
 - **Showcase Mode**: Optional automated face presentation with custom sequences
-- **Cyber-Chronometer Aesthetic**: Industrial luxury design with amber warning lights and cyan data displays
+- **Soft Cocktail Aesthetic**: Warm, inviting gallery-like atmosphere with pastel colors
 - **Calibration Ring**: Animated outer ring that responds to cube rotation
 - **Technical HUD**: Real-time display of rotation coordinates, visible face count, and frame statistics
-- **Dual Typography**: Elegant serif headings (Playfair Display) paired with monospace data readouts (JetBrains Mono)
-- **Smooth Animations**: Floating animation, interpolated rotation, and mechanical feedback
+- **Dual Typography**: Elegant serif headings (Playfair Display) paired with clean sans-serif data readouts (DM Sans)
+- **Smooth Animations**: Floating animation, interpolated rotation, and pulsing effects
+- **Particle System**: Delicate floating particles in rose, mint, and watermelon colors
+- **100% Native Brightness**: Images display at identical brightness to regular `<img>` tags
 - **Responsive**: Optimized camera distance for mobile and desktop
 - **Touch Friendly**: Works with mouse and touch input
 
@@ -27,7 +29,8 @@ An interactive 3D image viewer with a precision timekeeping aesthetic. Drag to r
 - **Vue 3** with Composition API and TypeScript
 - **Three.js** for 3D rendering
 - **Vite** for fast development
-- **Tailwind CSS** for styling with custom cyber-chronometer design system
+- **Tailwind CSS** for styling with custom soft cocktail design system
+- **Vitest** for unit testing
 
 ## Mobile Optimization
 
@@ -37,6 +40,7 @@ An interactive 3D image viewer with a precision timekeeping aesthetic. Drag to r
 - **Optimized Touch Targets**: Large drag area covering entire screen
 - **Calibration Ring**: Reduced opacity on touch devices for better visibility
 - **UI Adjustments**: Frame Info panel hidden on mobile, showcase button positioned at bottom edge
+- **Reduced Particles**: 75 particles on mobile vs 150 on desktop
 
 ## Performance
 
@@ -44,6 +48,7 @@ An interactive 3D image viewer with a precision timekeeping aesthetic. Drag to r
 - **Efficient Showcase Mode**: Cycle transitions use cached textures (no blocking operations)
 - **Memory Management**: Three.js resources properly disposed on unmount
 - **Canvas Cropping**: Client-side image processing with configurable strategies
+- **Automatic Image Optimization**: WebP/JPG/PNG compression during production builds
 
 ## Getting Started
 
@@ -56,6 +61,9 @@ npm run dev
 
 # Build for production
 npm run build
+
+# Run tests
+npm run test
 ```
 
 ## Usage
@@ -103,6 +111,7 @@ const imageUrls = [
   - Flat, clean aesthetic perfect for image viewing
 - **NoToneMapping**: Disabled for accurate color reproduction
 - **SRGBColorSpace**: Ensures proper color display across devices
+- **Anisotropic Filtering**: Sharp textures at oblique angles
 
 ### Cropping Examples
 
@@ -171,27 +180,6 @@ function pauseShowcase() {
 function resumeShowcase() {
   cubeRef.value?.resumeShowcase()
 }
-
-// Event handlers
-function onShowcaseStarted() {
-  console.log('Showcase started')
-}
-
-function onShowcaseStopped() {
-  console.log('Showcase stopped')
-}
-
-function onShowcasePaused() {
-  console.log('Showcase paused')
-}
-
-function onShowcaseResumed() {
-  console.log('Showcase resumed')
-}
-
-function onShowcaseCompleted() {
-  console.log('Showcase completed (non-looping)')
-}
 </script>
 ```
 
@@ -234,58 +222,27 @@ function onShowcaseCompleted() {
 
 **Showcase Mode Features:**
 - **Any sequence length**: No hard limit - use 1 face, all 6 unique faces, or repeat faces in longer patterns
-  - `[0, 2, 4]` - 3 faces
-  - `[0, 1, 2, 3, 4, 5]` - All 6 unique faces
-  - `[0, 2, 4, 0, 2, 4]` - 9 faces with repetitions
 - **Configurable timing**: `faceDuration` in milliseconds controls how long each face displays
-  - `1000` = 1 second, `2000` = 2 seconds, `3000` = 3 seconds (default), `5000` = 5 seconds
-  - Total cycle time = `sequence.length × faceDuration` milliseconds
 - Auto-start option: Begin showcase immediately on component mount
 - Loop control: Repeat sequence indefinitely or stop after completion
 - Smooth rotation: Adjustable interpolation speed for cinematic feel
-- Programmatic API: Control showcase via exposed methods
-  - `startShowcase()` - Start showcase mode
-  - `stopShowcase()` - Stop showcase mode
-  - `toggleShowcase()` - Toggle on/off
-  - `pauseShowcase()` - Pause without stopping (keeps current face)
-  - `resumeShowcase()` - Resume from paused state
-  - `isShowcaseActive()` - Query active state
-  - `isShowcasePaused()` - Query paused state
-- Event-based state tracking: Listen for showcase state changes
-  - `@showcase-started` - Emitted when showcase starts
-  - `@showcase-stopped` - Emitted when showcase stops
-  - `@showcase-paused` - Emitted when showcase is paused
-  - `@showcase-resumed` - Emitted when showcase resumes
-  - `@showcase-completed` - Emitted when non-looping sequence completes
-- Continuous mode: Showcase continues uninterrupted through user interactions
+- Programmatic API: Full control via exposed methods (`startShowcase()`, `stopShowcase()`, `toggleShowcase()`, `pauseShowcase()`, `resumeShowcase()`)
+- Event-based state tracking: Listen for showcase state changes (`@showcase-started`, `@showcase-stopped`, `@showcase-paused`, `@showcase-resumed`, `@showcase-completed`)
 - Pause functionality: Temporarily pause showcase to examine current face
 
 ## Controls
-
-- **Initial Orientation**: Cube starts with Front (F4) and Right (F0) faces displayed half-half
-  - X rotation: 0° (level, no tilt)
-  - Y rotation: -45° (45° toward right face from front center)
-  - Creates balanced composition showing two faces equally
 
 - **Drag**: Rotate the cube freely in any direction with intuitive camera-relative controls
   - Swipe right → faces rotate right on screen
   - Swipe left → faces rotate left on screen
   - Swipe up → faces rotate up on screen
   - Swipe down → faces rotate down on screen
-  - Behavior is consistent regardless of cube orientation (upside down, sideways, etc.)
+  - Behavior is consistent regardless of cube orientation
 - **Momentum/Inertia**: Fast flicks create natural spin that gradually decays
   - Quick flick → cube continues spinning with momentum
   - Slow drag or holding still → no momentum, stops on release
-  - Momentum decays smoothly using exponential decay (0.9 per frame)
+  - Momentum decays smoothly using exponential decay
 - **Showcase Mode**: When active, cube automatically rotates through predefined face sequence
-  - Smooth quaternion-based rotation aligns faces to camera
-  - Timing controlled by `faceDuration` configuration
-  - Can be toggled via button or started automatically with `autoStart`
-- The cube displays images on all 6 faces
-- **Face images change automatically** when they transition from off-view to on-view
-- Each face cycles through the provided image array independently
-- A 3-second cooldown prevents changes during rapid rotation
-- Release to maintain the current rotation angle
 
 ## HUD Elements
 
@@ -295,10 +252,8 @@ function onShowcaseCompleted() {
   - **SHOWCASE** - Automated showcase mode is running
   - **SHOWCASE (PAUSED)** - Showcase mode is paused on current face
 - **Top Right**: Real-time rotation coordinates (X/Y) and visible face indicators (e.g., F0, F2, F4)
-  - Rotation coordinates update at 60fps during drag, 10fps when idle
-  - Face numbers show which cube faces are currently visible to the camera
 - **Bottom Left**: Control mode hint (disappears after first interaction)
-- **Bottom Right**: Frame counter and total image cycle counter
+- **Bottom Right**: Frame counter and total image cycle counter (hidden on mobile)
 - **Calibration Ring**: Outer ring rotates with cube, shows degree markers
 
 ### Face Number Reference
@@ -310,7 +265,24 @@ function onShowcaseCompleted() {
 - **F4**: Front (+Z) - Visible on left half at startup
 - **F5**: Back (-Z)
 
-**Initially visible faces**: Front (F4) and Right (F0) are displayed in a half-half composition when the cube loads.
+## Design System
+
+**Colors:**
+- **Background**: Warm cream (#f9f6f1)
+- **Rose Pink**: Dusty rose for edges and accents (#d4a5a5, #e8c4c4)
+- **Mint**: Soft mint for accent (#a8c4a8, #9eb09e)
+- **Watermelon**: Soft watermelon for particles (#ffb6b6, #e87c7c)
+- **Text**: Warm brown (#8b7355) and dark gray (#1a1a1a)
+
+**Typography:**
+- **Serif**: Playfair Display (elegant headings)
+- **Sans-Serif**: DM Sans (clean technical data)
+
+**Particles:**
+- 150 particles (75 on mobile)
+- Colors: Rose pink, Mint, Soft watermelon
+- Slow, gentle floating motion
+- Spherical boundary wrapping
 
 ## Browser Compatibility
 
@@ -322,123 +294,93 @@ function onShowcaseCompleted() {
 
 **Current Readiness: 100%**
 
-The application has completed critical fixes and feature enhancements, making it production-ready:
+The application is production-ready with all critical features complete and tested.
 
-### Completed (Phase 1 - Critical)
-- ✅ **Memory Leak Fixes**: Proper Three.js resource disposal in unmount hook
-- ✅ **Error Handling**: Comprehensive try-catch blocks for texture loading with detailed logging
-- ✅ **Defensive Programming**: Null checks and guard clauses throughout
-- ✅ **Texture Memory Management**: Old textures disposed before replacement
+### Completed Features
 
-### Completed (Phase 2 - Features)
-- ✅ **Automatic Image Cropping**: Canvas-based square cropping prevents distortion on non-square images
-- ✅ **Configurable Cropping Strategies**: Cover (default), contain (letterbox), and fill (stretch) modes
-- ✅ **CORS Support**: Works with remote images from Unsplash and other sources
+**Phase 1 - Critical:**
+- ✅ Memory leak prevention (Three.js resource disposal)
+- ✅ Error handling with logging (all texture operations)
+- ✅ Defensive null checks throughout
+- ✅ Texture memory management (dispose before replace)
 
-### Completed (Phase 2.5 - UX Improvements)
-- ✅ **Camera-Relative Rotation**: Quaternion-based rotation ensures swipe direction matches screen direction regardless of cube orientation
-- ✅ **World-Axis Rotation**: Uses `rotateOnWorldAxis()` for consistent screen-space rotation behavior
-- ✅ **Realistic Momentum/Inertia**: Fast flicks create natural spin that decays smoothly
-  - Movement detection prevents momentum when holding still
-  - Minimum threshold prevents slow drags from creating unwanted spin
-  - Configurable decay rate and scale for fine-tuned feel
-- ✅ **Code Quality**: All magic numbers extracted to named constants
-- ✅ **Documentation**: Comprehensive drag-to-axis mapping diagram added
-- ✅ **Code Review**: All feedback addressed through two rounds of review
+**Phase 2 - Features:**
+- ✅ Automatic square image cropping with canvas-based processing
+- ✅ Multiple cropping strategies (cover, contain, fill)
+- ✅ CORS support for remote images
+- ✅ Backward compatible API with sensible defaults
 
-### Completed (Phase 2.75 - Showcase Mode)
-- ✅ **Custom Face Sequences**: Configurable face order with any length
-  - Support for repeated faces in sequences
-  - Configurable timing per face (1-10+ seconds)
-  - Loop control (repeat indefinitely or stop once)
-- ✅ **Programmatic API**: Full control via exposed methods
-  - `startShowcase()`, `stopShowcase()`, `toggleShowcase()`
-  - `pauseShowcase()`, `resumeShowcase()` for temporary pauses
-  - `isShowcaseActive()`, `isShowcasePaused()` state queries
-- ✅ **Event System**: Reactive state tracking with 5 events
-  - `showcaseStarted`, `showcaseStopped`, `showcasePaused`, `showcaseResumed`, `showcaseCompleted`
-- ✅ **Smooth Rotation**: Quaternion-based face alignment using `setFromUnitVectors()`
-- ✅ **Precise Timing**: Delta time from `performance.now()` eliminates drift
-  - Accumulates time only when active (not paused)
-  - Resets frame time on stop/pause to prevent jumps
-- ✅ **Production Optimization**: Environment-aware console logging
-  - Debug logs only appear in development (`import.meta.env.DEV`)
-  - Silent operation in production builds
-- ✅ **Code Quality**: Comprehensive JSDoc documentation for all public APIs
-- ✅ **HUD Integration**: Showcase status visible in top-left panel
-  - Shows "SHOWCASE" when running
-  - Shows "SHOWCASE (PAUSED)" when paused
+**Phase 2.5 - UX Improvements:**
+- ✅ Camera-relative rotation using quaternions
+- ✅ World-axis rotation for consistent screen-space behavior
+- ✅ Swipe direction matches user expectations regardless of orientation
+- ✅ Realistic momentum/inertia system with movement detection
+- ✅ Code quality improvements: extracted magic numbers to named constants
 
-### Completed (Phase 2.8 - Native Brightness)
-- ✅ **MeshBasicMaterial**: Switched to unlit material for 100% browser-native brightness
-  - Images display at identical brightness to regular `<img>` tags
-  - No shading or lighting calculations affect image brightness
-  - Flat, clean aesthetic optimized for image viewing
-- ✅ **NoToneMapping**: Disabled tone mapping for accurate color reproduction
-- ✅ **Simplified Rendering**: Removed exposure control (no longer needed)
-- ✅ **Performance**: Slightly better performance with fewer calculations
+**Phase 2.75 - Showcase Mode:**
+- ✅ Custom face sequence showcase mode
+- ✅ Configurable timing, looping, and auto-start
+- ✅ Programmatic API (start/stop/toggle/pause/resume)
+- ✅ Smooth quaternion-based rotation to align faces with camera
+- ✅ Event system for reactive state tracking
+- ✅ Delta time precision (no timing drift)
+- ✅ Production-ready console logging
 
-### Code Review Fixes (Latest)
-- ✅ **Race Condition Fix**: Guard checks prevent accessing empty sequences
-- ✅ **Timing Precision**: Delta time system prevents drift over long sessions
-- ✅ **Event-Based Tracking**: Parent components use events instead of polling
-- ✅ **Pause Functionality**: Users can pause to examine faces without stopping sequence
-- ✅ **Production Logging**: Console messages respect development/production environment
+**Phase 2.8 - Native Brightness:**
+- ✅ MeshBasicMaterial for 100% browser-native brightness
+- ✅ NoToneMapping for accurate color reproduction
+- ✅ Simplified rendering with better performance
 
-### Completed (Phase 2.86 - Code Review & Testing)
-- ✅ **Input Validation**: Added comprehensive validation for `pendingSkippedFaceUpdate`
-  - Range check ensures face index is 0-5
-  - Type check validates integer values
-  - Clear error messages with automatic cleanup
-- ✅ **Race Condition Prevention**: Added `pendingUpdateTriggered` one-shot flag
-  - Prevents duplicate pending updates during rapid rotation
-  - Reset when setting new pending update
-  - Ensures F4 only updates once per cycle transition
-- ✅ **Code Deduplication**: Extracted `translateIndex` to module-level constant
-  - Eliminates duplicate function definitions
-  - Single source of truth for material reordering logic
-  - Used in both showcase assignment and pending update
-- ✅ **Unit Test Infrastructure**: Added vitest with comprehensive test suite
-  - 16 tests covering material reordering logic
-  - Tests for translateIndex, face-to-image mapping, even distribution
-  - Edge case coverage and integration tests
-  - All tests passing (2ms runtime)
-  - Test scripts: `npm run test` (watch), `npm run test:run` (single run), `npm run test:ui` (UI mode)
+**Phase 2.85 - Display & Distribution Fixes:**
+- ✅ Material reordering fix for correct image display
+- ✅ Even image distribution across all faces
+- ✅ Showcase mode pending update mechanism
 
-### Completed (Phase 2.87 - Performance & Mobile)
-- ✅ **Pre-Loaded Textures**: All images pre-loaded during initialization
-  - Stores all textures in `allPreloadedTextures[]` array
-  - Showcase mode uses instant texture swapping (no async loading)
-  - Eliminates mid-rotation sluggishness during cycle transitions
-  - Drag-to-rotate mode unaffected (still uses async loading)
-- ✅ **Memory Safety**: Code review fixes for critical memory issues
-  - Texture disposal bug: Added check to prevent disposing shared preloaded textures
-  - Memory leak: Cleanup in `onUnmounted()` for allPreloadedTextures with in-use checks
-  - Edge cases: Defensive checks for empty images array and undefined textures
-  - Ensures no visual corruption or GPU memory leaks
-- ✅ **Mobile UI Adjustments**:
-  - Frame Info panel hidden on mobile (responsive: hidden md:block)
-  - Showcase button moved to bottom-16 on mobile (was bottom-32)
-  - Prevents UI elements from overlapping with 3D cube
+**Phase 2.86 - Code Review & Testing:**
+- ✅ Input validation for face indices
+- ✅ Race condition prevention
+- ✅ Code deduplication (translateIndex)
+- ✅ Unit test infrastructure with Vitest (16 tests)
 
-### Completed (Phase 2.85 - Display & Distribution Fixes)
-- ✅ **Material Reordering Fix**: Fixed Three.js BoxGeometry material indexing
-  - Images now display correctly as [1,2,3,4,5,6] on faces [0,1,2,3,4,5]
-  - Material array reordered to account for Three.js's internal face-to-material mapping
-  - Ensures sequential image display across all cube faces
-- ✅ **Even Image Distribution**: Fixed `faceImageIndices` initialization
-  - Changed from swapped indices [1,0,3,2,5,4] to sequential [0,1,2,3,4,5]
-  - Each face now starts at a different image, ensuring even distribution
-  - All images appear with equal frequency when faces cycle
-- ✅ **Showcase Mode F4 Update**: Added pending update mechanism for skipped face
-  - F4 (second-to-last face) is skipped during pre-load to prevent showing old image during F5→F0 rotation
-  - Pending update triggers when F0 aligns with camera (alignment >= 0.999)
-  - Ensures all faces eventually show correct images from current cycle
-  - Removed redundant pending update for F5 (already updated immediately)
+**Phase 2.87 - Performance & Mobile:**
+- ✅ Pre-loaded textures for instant showcase transitions
+- ✅ Memory safety fixes for texture disposal
+- ✅ Mobile UI adjustments (hidden frame info, repositioned button)
 
-### Remaining Improvements (Phase 3 - Enhancements)
-- ⏳ Accessibility: ARIA labels and keyboard navigation support
-- ✅ Testing: Unit tests added for material reordering logic (Phase 2.86)
-- ⏳ Testing: Additional tests for quaternion rotation logic and showcase mode
+**Phase 3 - Aesthetic Enhancements:**
+- ✅ Soft cocktail color palette (rose, mint, watermelon)
+- ✅ Particle system with floating pastel orbs
+- ✅ Calibration ring with degree markers
+- ✅ Dynamic edge glow with pulse animation
+- ✅ Clean, gallery-like presentation
+- ✅ Mobile-optimized particle count
 
-The application is stable, feature-complete, and all known issues have been resolved. All images display in correct order with even distribution. Code review feedback has been addressed with comprehensive tests. Ready for production deployment.
+## Project Structure
+
+```
+src/
+├── App.vue                    # Root component with sample images
+├── main.ts                    # Vue app entry point
+├── styles/
+│   └── main.css              # Soft cocktail aesthetic system
+├── components/
+│   └── MagicCube.vue         # Main 3D cube component
+├── composables/
+│   └── useCubeNavigation.ts  # Gesture handling
+├── utils/
+│   ├── textureCropping.ts    # Image cropping utilities
+│   └── materialReordering.spec.ts  # Unit tests
+└── assets/
+    └── images/               # Image directory (auto-loaded)
+```
+
+## Adding Images
+
+1. Drop image files into `src/assets/images/`
+2. They're automatically detected and loaded (no code changes needed)
+3. Supported formats: JPG, JPEG, PNG, WebP, GIF, SVG
+4. Images automatically optimized during production build
+
+## License
+
+MIT
