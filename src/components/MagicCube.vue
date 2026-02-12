@@ -319,7 +319,11 @@ function assignImagesToFacesForShowcase(skipFace?: number) {
 
       // Dispose old texture only if it's not from our preloaded cache
       // Preloaded textures are shared and must not be disposed
-      if (material.map && material.map !== texture && !allPreloadedTextures.includes(material.map)) {
+      if (
+        material.map &&
+        material.map !== texture &&
+        !allPreloadedTextures.includes(material.map)
+      ) {
         material.map.dispose()
       }
 
@@ -513,7 +517,8 @@ const initThreeJS = async () => {
 
   // Store all textures for instant swapping during showcase cycle transitions
   allPreloadedTextures = textures
-  if (DEBUG) console.log(`💾 Stored ${allPreloadedTextures.length} pre-loaded textures for showcase mode`)
+  if (DEBUG)
+    console.log(`💾 Stored ${allPreloadedTextures.length} pre-loaded textures for showcase mode`)
 
   // Create materials for each face - MeshBasicMaterial for 100% browser-native brightness
   const materials = textures.map((texture) => {
@@ -589,7 +594,7 @@ const initThreeJS = async () => {
   initParticleSystem(isMobile)
 
   // Set initial rotation to show Front (F4) and Right (F0) faces half-half
-  cube.rotation.x = THREE.MathUtils.degToRad(0)   // No tilt (level cube)
+  cube.rotation.x = THREE.MathUtils.degToRad(0) // No tilt (level cube)
   cube.rotation.y = THREE.MathUtils.degToRad(-45) // Rotate 45° toward right face
 
   // Initialize target quaternion from initial rotation
@@ -791,7 +796,6 @@ const animate = () => {
 
       // Update target quaternion so we don't snap back
       targetQuaternion.copy(cube.quaternion)
-
     } else {
       // Reset frame time when not active to avoid large delta on restart
       lastShowcaseFrameTime = 0
@@ -853,9 +857,7 @@ const animate = () => {
         pendingSkippedFaceUpdate >= 6 ||
         !Number.isInteger(pendingSkippedFaceUpdate)
       ) {
-        console.error(
-          `Invalid pendingSkippedFaceUpdate: ${pendingSkippedFaceUpdate}. Must be 0-5.`
-        )
+        console.error(`Invalid pendingSkippedFaceUpdate: ${pendingSkippedFaceUpdate}. Must be 0-5.`)
         pendingSkippedFaceUpdate = null
         return
       }
@@ -897,7 +899,11 @@ const animate = () => {
           }
 
           // Dispose old texture only if it's not from our preloaded cache
-          if (material.map && material.map !== texture && !allPreloadedTextures.includes(material.map)) {
+          if (
+            material.map &&
+            material.map !== texture &&
+            !allPreloadedTextures.includes(material.map)
+          ) {
             material.map.dispose()
           }
 
@@ -1156,7 +1162,8 @@ onUnmounted(() => {
   // Dispose of preloaded textures
   // Note: We skip textures that are still referenced by materials to avoid double-disposal
   allPreloadedTextures.forEach((texture) => {
-    const isInUse = cube && (cube.material as THREE.MeshBasicMaterial[]).some((m) => m.map === texture)
+    const isInUse =
+      cube && (cube.material as THREE.MeshBasicMaterial[]).some((m) => m.map === texture)
     if (!isInUse) {
       texture.dispose()
     }
