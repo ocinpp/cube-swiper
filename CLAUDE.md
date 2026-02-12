@@ -359,6 +359,16 @@ const sampleImages = Object.values(imageModules)
   .sort()
 ```
 
+---
+
+## 8. Gotchas & Pitfalls
+
+This section documents critical implementation details, edge cases, and common pitfalls to be aware of when working with this codebase.
+
+### 8.1 Showcase Mode - Pending Update for Skipped Face (F4)
+
+**CRITICAL:** When showcase mode transitions from last face (F5) to first face (F0), it must skip the second-to-last face (F4) to prevent showing an outdated image during rotation.
+
 ### Automatic Image Compression
 
 The project uses **`vite-plugin-image-optimizer`** to automatically compress images during production builds.
