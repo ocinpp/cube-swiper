@@ -7,7 +7,7 @@
       :showcase-mode="{
         enabled: true,
         sequence: [0, 1, 2, 3, 4, 5],
-        faceDuration: 4000,
+        faceDuration: 5000,
         autoStart: false,
         loop: true,
         rotationSpeed: 0.02,
