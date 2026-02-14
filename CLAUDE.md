@@ -47,15 +47,8 @@ All critical issues and major features have been implemented. The application is
 - ✅ Simplified rendering with better performance
 
 **Completed (Phase 2.85 - Display & Distribution Fixes):**
-- ✅ Simplified material mapping (1:1 face-to-image)
 - ✅ Even image distribution across all faces
 - ✅ Showcase mode pending update mechanism
-
-**Completed (Phase 2.88 - Duplicate Prevention):**
-- ✅ Fixed visibility detection (dot product < 0 for camera-facing)
-- ✅ Unique image selection prevents duplicates on visible faces
-- ✅ Skip last face in showcase sequence to prevent visual glitches
-- ✅ Initialize visibility tracking to prevent first-frame cycling
 
 **Completed (Phase 2.86 - Code Review & Testing):**
 - ✅ Input validation for face indices
@@ -67,6 +60,12 @@ All critical issues and major features have been implemented. The application is
 - ✅ Pre-loaded textures for instant showcase transitions
 - ✅ Memory safety fixes for texture disposal
 - ✅ Mobile UI adjustments (hidden frame info, repositioned button)
+
+**Completed (Phase 2.88 - Duplicate Prevention):**
+- ✅ Fixed visibility detection (dot product < 0 for camera-facing)
+- ✅ Unique image selection prevents duplicates on visible faces
+- ✅ Skip last face in showcase sequence to prevent visual glitches
+- ✅ Initialize visibility tracking to prevent first-frame cycling
 
 **Completed (Phase 3 - Aesthetic Enhancements):**
 - ✅ Soft cocktail color palette (rose, mint, watermelon)
@@ -373,7 +372,12 @@ This section documents critical implementation details, edge cases, and common p
 
 ### 8.1 Showcase Mode - Skipped Face Handling
 
-**CRITICAL:** When showcase mode transitions from last face to first face, it skips the last face itself (keeping its old image) until the first face is fully aligned with the camera. This prevents showing an outdated image during rotation since the last face remains partially visible.
+**CRITICAL:** Showcase mode uses a two-phase skipping mechanism to prevent visual glitches:
+
+1. **On initialization**: Skips the **opposite face** of the first face in sequence (via `translateIndex`) - this face might become visible during the first rotation
+2. **On cycle transition**: Skips the **last face** in the sequence itself - this face remains partially visible during rotation to the first face
+
+The skipped face keeps its old image until the first face is fully aligned with the camera (dot product >= 0.999).
 
 ### Automatic Image Compression
 
@@ -459,7 +463,7 @@ App.vue                    # Root component, provides sample images array
 ### Three.js Configuration Details
 
 - Camera distance adjusts for mobile (4.5) vs desktop (3)
-- **Simple 1:1 face-to-image mapping**: Face i shows image i directly (no reordering)
+- **Face-to-image mapping**: Face i shows image i directly; `translateIndex` function provides opposite face lookup for showcase mode
 - Uses `MeshBasicMaterial` for 100% browser-native brightness (unlit material)
   - No shading, reflections, or lighting calculations
   - Images display at identical brightness to `<img>` tags
