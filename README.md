@@ -11,6 +11,7 @@ An interactive 3D image viewer with a soft cocktail lounge aesthetic. Drag to ro
 - **Camera-Relative Rotation**: Swipe direction always matches screen direction - right swipe moves faces right regardless of cube orientation
 - **Free Rotation**: Drag to rotate the cube in any direction - no constrained angles
 - **Dynamic Face Changes**: Images cycle automatically when faces become visible to the camera
+- **No Duplicate Images**: Visible faces always show different images - smart selection prevents duplicates
 - **Smart Cooldown System**: 3-second cooldown prevents excessive changes during rapid rotation
 - **Automatic Image Cropping**: Non-square images are center-cropped to fit cube faces without distortion
 - **Showcase Mode**: Optional automated face presentation with custom sequences
@@ -332,9 +333,15 @@ The application is production-ready with all critical features complete and test
 - ✅ Simplified rendering with better performance
 
 **Phase 2.85 - Display & Distribution Fixes:**
-- ✅ Material reordering fix for correct image display
+- ✅ Simplified material mapping (1:1 face-to-image)
 - ✅ Even image distribution across all faces
 - ✅ Showcase mode pending update mechanism
+
+**Phase 2.88 - Duplicate Prevention:**
+- ✅ Fixed visibility detection (dot product < 0 for camera-facing)
+- ✅ Unique image selection prevents duplicates on visible faces
+- ✅ Skip last face in showcase sequence to prevent visual glitches
+- ✅ Initialize visibility tracking to prevent first-frame cycling
 
 **Phase 2.86 - Code Review & Testing:**
 - ✅ Input validation for face indices
