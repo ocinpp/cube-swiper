@@ -47,9 +47,15 @@ All critical issues and major features have been implemented. The application is
 - ✅ Simplified rendering with better performance
 
 **Completed (Phase 2.85 - Display & Distribution Fixes):**
-- ✅ Material reordering fix for correct image display
+- ✅ Simplified material mapping (1:1 face-to-image)
 - ✅ Even image distribution across all faces
 - ✅ Showcase mode pending update mechanism
+
+**Completed (Phase 2.88 - Duplicate Prevention):**
+- ✅ Fixed visibility detection (dot product < 0 for camera-facing)
+- ✅ Unique image selection prevents duplicates on visible faces
+- ✅ Skip last face in showcase sequence to prevent visual glitches
+- ✅ Initialize visibility tracking to prevent first-frame cycling
 
 **Completed (Phase 2.86 - Code Review & Testing):**
 - ✅ Input validation for face indices
@@ -365,9 +371,9 @@ const sampleImages = Object.values(imageModules)
 
 This section documents critical implementation details, edge cases, and common pitfalls to be aware of when working with this codebase.
 
-### 8.1 Showcase Mode - Pending Update for Skipped Face (F4)
+### 8.1 Showcase Mode - Skipped Face Handling
 
-**CRITICAL:** When showcase mode transitions from last face (F5) to first face (F0), it must skip the second-to-last face (F4) to prevent showing an outdated image during rotation.
+**CRITICAL:** When showcase mode transitions from last face to first face, it skips the last face itself (keeping its old image) until the first face is fully aligned with the camera. This prevents showing an outdated image during rotation since the last face remains partially visible.
 
 ### Automatic Image Compression
 
@@ -431,7 +437,8 @@ App.vue                    # Root component, provides sample images array
 - Cube mesh creation with 6 faces, each mapped to an image texture
 - **Texture loading with cropping**: All images cropped to square before being applied as textures
 - **Dynamic face image changes**: Detects when faces become visible and cycles through images
-- **Face visibility system**: Uses dot product of face normals with camera direction
+- **Unique image selection**: Prevents duplicate images on visible faces
+- **Face visibility system**: Uses dot product of face normals with camera direction (dot < 0 = visible)
 - **Cooldown mechanism**: 3-second cooldown per face prevents excessive changes
 - **Hybrid HUD update system**:
   - During drag: Real-time 60fps updates for rotation coordinates and face numbers
@@ -452,6 +459,7 @@ App.vue                    # Root component, provides sample images array
 ### Three.js Configuration Details
 
 - Camera distance adjusts for mobile (4.5) vs desktop (3)
+- **Simple 1:1 face-to-image mapping**: Face i shows image i directly (no reordering)
 - Uses `MeshBasicMaterial` for 100% browser-native brightness (unlit material)
   - No shading, reflections, or lighting calculations
   - Images display at identical brightness to `<img>` tags
@@ -678,9 +686,28 @@ The cube automatically changes the image on a face when it transitions from off-
 
 #### Face Detection Algorithm
 1. **Face Normals**: Each of the 6 faces has a normal vector pointing in its local direction
-2. **Visibility Check**: Transform face normals by cube's rotation, calculate dot product with camera
+2. **Visibility Check**: Transform face normals by cube's rotation, calculate dot product with camera direction. A face is visible when `dot product < 0` (normal points toward camera)
 3. **Transition Detection**: Track `previouslyVisibleFaces` Set and compare with current frame
-4. **Image Update**: When face becomes newly visible, check cooldown (3000ms), then increment image index
+4. **Image Update**: When face becomes newly visible, check cooldown (3000ms), then select next unique image
+
+#### Unique Image Selection
+When a face becomes visible, the system selects the next image that is NOT currently displayed on any other visible face. This ensures all visible faces always show different images.
+
+```typescript
+function getNextUniqueImageIndex(
+  currentIndex: number,
+  visibleImageIndices: Set<number>,
+  totalImages: number
+): number {
+  let nextIndex = (currentIndex + 1) % totalImages
+  let attempts = 0
+  while (visibleImageIndices.has(nextIndex) && attempts < totalImages) {
+    nextIndex = (nextIndex + 1) % totalImages
+    attempts++
+  }
+  return nextIndex
+}
+```
 
 ### Showcase Mode
 
