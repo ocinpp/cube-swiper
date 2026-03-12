@@ -182,6 +182,8 @@ let animationFrameId: number
 let particles: THREE.Points
 let keyLight: THREE.DirectionalLight
 let fillLight: THREE.DirectionalLight
+let ambientLight: THREE.AmbientLight
+let rimLight: THREE.DirectionalLight
 
 // Aesthetic enhancement constants - soft cocktail palette
 const PARTICLE_COUNT = 150 // Fewer, more subtle particles
@@ -549,7 +551,7 @@ const initThreeJS = async () => {
 
   // Soft studio lighting for edge glow and particles
   // Note: MeshBasicMaterial is unlit, so these lights only affect edge glow and particles
-  const ambientLight = new THREE.AmbientLight(0xfff5f0, 0.8)
+  ambientLight = new THREE.AmbientLight(0xfff5f0, 0.8)
   scene.add(ambientLight)
 
   keyLight = new THREE.DirectionalLight(0xffffff, 2.0)
@@ -561,7 +563,7 @@ const initThreeJS = async () => {
   scene.add(fillLight)
 
   // Add rim light for depth
-  const rimLight = new THREE.DirectionalLight(0xe8c4c4, 0.4)
+  rimLight = new THREE.DirectionalLight(0xe8c4c4, 0.4)
   rimLight.position.set(-4, 2, -3)
   scene.add(rimLight)
 
@@ -952,18 +954,19 @@ const animate = () => {
       // During showcase mode, don't increment - images are pre-assigned per cycle
       // During normal mode, find next unique image not currently visible
       if (!isInShowcase) {
-        // Get images currently displayed on OTHER visible faces (exclude current face)
-        const otherVisibleImageIndices = new Set<number>()
-        for (const visibleFace of nowVisibleFaces) {
-          if (visibleFace !== faceIndex) {
-            otherVisibleImageIndices.add(faceImageIndices[visibleFace])
+        // Get images currently displayed on ALL OTHER faces (exclude current face)
+        // This prevents duplicates even when faces become visible together later
+        const otherFaceImageIndices = new Set<number>()
+        for (let i = 0; i < 6; i++) {
+          if (i !== faceIndex) {
+            otherFaceImageIndices.add(faceImageIndices[i])
           }
         }
 
-        // Find next unique image that's not currently visible on other faces
+        // Find next unique image that's not currently on any other face
         const nextIndex = getNextUniqueImageIndex(
           faceImageIndices[faceIndex],
-          otherVisibleImageIndices,
+          otherFaceImageIndices,
           props.images.length
         )
 
@@ -1160,6 +1163,24 @@ onUnmounted(() => {
   if (particles) {
     particles.geometry.dispose()
     ;(particles.material as THREE.Material).dispose()
+  }
+
+  // Dispose of lights
+  if (ambientLight) {
+    ambientLight.dispose()
+    scene.remove(ambientLight)
+  }
+  if (keyLight) {
+    keyLight.dispose()
+    scene.remove(keyLight)
+  }
+  if (fillLight) {
+    fillLight.dispose()
+    scene.remove(fillLight)
+  }
+  if (rimLight) {
+    rimLight.dispose()
+    scene.remove(rimLight)
   }
 
   // Dispose of renderer

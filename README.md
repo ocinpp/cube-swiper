@@ -47,7 +47,7 @@ An interactive 3D image viewer with a soft cocktail lounge aesthetic. Drag to ro
 
 - **Pre-Loaded Textures**: All images loaded during initialization for instant swapping
 - **Efficient Showcase Mode**: Cycle transitions use cached textures (no blocking operations)
-- **Memory Management**: Three.js resources properly disposed on unmount
+- **Memory Management**: All Three.js resources (textures, geometries, materials, lights, particles) properly disposed on unmount
 - **Canvas Cropping**: Client-side image processing with configurable strategies
 - **Automatic Image Optimization**: WebP/JPG/PNG compression during production builds
 

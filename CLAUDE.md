@@ -67,6 +67,10 @@ All critical issues and major features have been implemented. The application is
 - ✅ Skip last face in showcase sequence to prevent visual glitches
 - ✅ Initialize visibility tracking to prevent first-frame cycling
 
+**Completed (Phase 2.89 - Light Disposal):**
+- ✅ Proper disposal of all Three.js lights (ambient, key, fill, rim)
+- ✅ Lights removed from scene on component unmount
+
 **Completed (Phase 3 - Aesthetic Enhancements):**
 - ✅ Soft cocktail color palette (rose, mint, watermelon)
 - ✅ Particle system with floating pastel orbs
@@ -233,6 +237,7 @@ onUnmounted(() => {
   // Cleanup Three.js resources
   cube.material.forEach(m => m.dispose())
   cube.geometry.dispose()
+  // Also dispose lights, edges, particles, renderer, etc.
 })
 
 // Expose public API
@@ -614,6 +619,35 @@ onUnmounted(() => {
   // Dispose edges
   edges.geometry.dispose()
   ;(edges.material as THREE.Material).dispose()
+
+  // Dispose particle system
+  if (particles) {
+    particles.geometry.dispose()
+    ;(particles.material as THREE.Material).dispose()
+  }
+
+  // Dispose of lights
+  if (ambientLight) {
+    ambientLight.dispose()
+    scene.remove(ambientLight)
+  }
+  if (keyLight) {
+    keyLight.dispose()
+    scene.remove(keyLight)
+  }
+  if (fillLight) {
+    fillLight.dispose()
+    scene.remove(fillLight)
+  }
+  if (rimLight) {
+    rimLight.dispose()
+    scene.remove(rimLight)
+  }
+
+  // Dispose of environment map
+  if (scene && scene.environment) {
+    scene.environment.dispose()
+  }
 
   // Dispose renderer
   renderer.dispose()
